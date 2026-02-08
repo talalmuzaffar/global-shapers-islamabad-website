@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Global Shapers Faisalabad Hub</title>
+    <meta name="description" content="Admin panel for managing content">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-box">
+                <h1 class="login-title">Admin Login</h1>
+                <p class="login-subtitle">Global Shapers Faisalabad Hub</p>
+                <form id="login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required autocomplete="current-password">
+                    </div>
+                    <div id="login-error" class="error-message" style="display: none;"></div>
+                    <button type="submit" class="login-btn">Login</button>
+                </form>
+                <p style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">Admin access is restricted to hub administrators.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="admin-panel" class="admin-panel" style="display: none;">
+        <div class="admin-header">
+            <div class="container">
+                <div class="admin-header-content">
+                    <div>
+                        <h1 class="admin-title">Content Management</h1>
+                        <p class="admin-subtitle">Global Shapers Faisalabad Hub</p>
+                    </div>
+                    <div class="admin-actions">
+                        <button id="logout-btn" class="admin-btn secondary">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="admin-tabs">
+            <div class="container">
+                <div class="tabs-nav">
+                    <button class="tab-btn active" data-tab="submissions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        Submissions
+                    </button>
+                    <button class="tab-btn" data-tab="projects">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                        Projects
+                    </button>
+                    <button class="tab-btn" data-tab="members">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        Members
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-content">
+            <div class="container">
+
+                <!-- ==================== SUBMISSIONS TAB ==================== -->
+                <div id="tab-submissions" class="tab-panel active">
+                    <div class="panel-header">
+                        <h2>Contact Form Submissions</h2>
+                        <div class="panel-actions">
+                            <button id="refresh-btn" class="admin-btn">Refresh</button>
+                            <button id="export-btn" class="admin-btn primary">Export CSV</button>
+                        </div>
+                    </div>
+
+                    <div id="loading" class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <p>Loading submissions...</p>
+                    </div>
+
+                    <div id="error-state" class="error-state" style="display: none;">
+                        <p>Failed to load submissions. Please try again.</p>
+                        <button id="retry-btn" class="admin-btn">Retry</button>
+                    </div>
+
+                    <div id="submissions-container" style="display: none;">
+                        <div class="submissions-header">
+                            <h3>Total Submissions: <span id="submission-count">0</span></h3>
+                        </div>
+                        <div class="table-container">
+                            <table id="submissions-table" class="submissions-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Timestamp</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Type</th>
+                                        <th>Message</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="submissions-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="empty-state" class="empty-state" style="display: none;">
+                        <p>No submissions yet.</p>
+                    </div>
+                </div>
+
+                <!-- ==================== PROJECTS TAB ==================== -->
+                <div id="tab-projects" class="tab-panel">
+                    <div class="panel-header">
+                        <h2>Manage Projects</h2>
+                        <div class="panel-actions">
+                            <button id="add-project-btn" class="admin-btn primary">+ Add Project</button>
+                            <button id="download-projects-btn" class="admin-btn">Download JSON</button>
+                        </div>
+                    </div>
+
+                    <!-- Project Form (hidden by default) -->
+                    <div id="project-form-container" class="form-container" style="display: none;">
+                        <div class="form-card">
+                            <div class="form-card-header">
+                                <h3 id="project-form-title">Add New Project</h3>
+                                <button id="close-project-form" class="close-btn">&times;</button>
+                            </div>
+                            <form id="project-form">
+                                <input type="hidden" id="project-edit-id" value="">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="project-title">Project Title *</label>
+                                        <input type="text" id="project-title" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="project-category">Category *</label>
+                                        <select id="project-category" required>
+                                            <option value="">Select category</option>
+                                            <option value="covid">COVID-19</option>
+                                            <option value="climate">Climate & Environment</option>
+                                            <option value="education">Education & Employment</option>
+                                            <option value="equity">Equity & Inclusion</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="project-short-desc">Short Description *</label>
+                                    <input type="text" id="project-short-desc" required placeholder="Brief summary for project cards">
+                                </div>
+                                <div class="form-group">
+                                    <label for="project-full-desc">Full Description (HTML supported) *</label>
+                                    <textarea id="project-full-desc" rows="8" required placeholder="<p>Detailed description...</p>"></textarea>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="project-image-url">Image URL (public URL)</label>
+                                        <input type="url" id="project-image-url" placeholder="https://example.com/image.jpg">
+                                        <small class="form-help">Paste a publicly accessible image URL. Leave empty for no image.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="project-impact">Impact Metric</label>
+                                        <input type="text" id="project-impact" placeholder="e.g. 1,000 students trained">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="project-date">Date</label>
+                                        <input type="text" id="project-date" placeholder="e.g. June 2020">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="project-flagship">
+                                            <span>Flagship Project</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="project-links">External Links (one per line)</label>
+                                    <textarea id="project-links" rows="3" placeholder="https://example.com/photos&#10;https://example.com/article"></textarea>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="button" id="cancel-project-btn" class="admin-btn">Cancel</button>
+                                    <button type="submit" class="admin-btn primary">Save Project</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Projects List -->
+                    <div id="projects-list" class="items-list"></div>
+                </div>
+
+                <!-- ==================== MEMBERS TAB ==================== -->
+                <div id="tab-members" class="tab-panel">
+                    <div class="panel-header">
+                        <h2>Manage Members</h2>
+                        <div class="panel-actions">
+                            <button id="add-member-btn" class="admin-btn primary">+ Add Member</button>
+                            <button id="download-members-btn" class="admin-btn">Download JSON</button>
+                        </div>
+                    </div>
+
+                    <!-- Member Form (hidden by default) -->
+                    <div id="member-form-container" class="form-container" style="display: none;">
+                        <div class="form-card">
+                            <div class="form-card-header">
+                                <h3 id="member-form-title">Add New Member</h3>
+                                <button id="close-member-form" class="close-btn">&times;</button>
+                            </div>
+                            <form id="member-form">
+                                <input type="hidden" id="member-edit-id" value="">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="member-name">Full Name *</label>
+                                        <input type="text" id="member-name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="member-type">Type *</label>
+                                        <select id="member-type" required>
+                                            <option value="">Select type</option>
+                                            <option value="active">Active Member</option>
+                                            <option value="alumni">Alumni</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="member-role">Role / Position</label>
+                                        <input type="text" id="member-role" placeholder="e.g. Curator, Impact Officer, Director Partnerships">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="member-photo-url">Photo URL (public URL)</label>
+                                        <input type="url" id="member-photo-url" placeholder="https://example.com/photo.jpg">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="member-bio">Bio / What they're doing now</label>
+                                    <textarea id="member-bio" rows="3" placeholder="Brief description of current activities..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Social Media Links</label>
+                                    <div class="social-inputs">
+                                        <div class="social-input-row">
+                                            <span class="social-label">LinkedIn</span>
+                                            <input type="url" id="member-linkedin" placeholder="https://linkedin.com/in/...">
+                                        </div>
+                                        <div class="social-input-row">
+                                            <span class="social-label">Instagram</span>
+                                            <input type="url" id="member-instagram" placeholder="https://instagram.com/...">
+                                        </div>
+                                        <div class="social-input-row">
+                                            <span class="social-label">Facebook</span>
+                                            <input type="url" id="member-facebook" placeholder="https://facebook.com/...">
+                                        </div>
+                                        <div class="social-input-row">
+                                            <span class="social-label">Twitter</span>
+                                            <input type="url" id="member-twitter" placeholder="https://twitter.com/...">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="button" id="cancel-member-btn" class="admin-btn">Cancel</button>
+                                    <button type="submit" class="admin-btn primary">Save Member</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Members Filter -->
+                    <div class="members-filter">
+                        <button class="filter-pill active" data-member-filter="all">All</button>
+                        <button class="filter-pill" data-member-filter="active">Active</button>
+                        <button class="filter-pill" data-member-filter="alumni">Alumni</button>
+                    </div>
+
+                    <!-- Members List -->
+                    <div id="members-list" class="items-list"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/admin.js"></script>
+</body>
+</html>

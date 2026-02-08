@@ -1,0 +1,20 @@
+{
+  "name": "global-shapers-faisalabad-website",
+  "version": "1.0.0",
+  "description": "Global Shapers Faisalabad Hub Website",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static site - no build needed'",
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "global-shapers",
+    "faisalabad",
+    "website"
+  ],
+  "author": "Global Shapers Faisalabad Hub",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1"
+  }
+}
