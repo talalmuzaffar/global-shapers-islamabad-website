@@ -295,48 +295,39 @@ function showProjectForm(project = null) {
     const title = document.getElementById('project-form-title');
 
     currentEditProjectId = null;
+    title.textContent = project ? 'Edit Project' : 'Add New Project';
+    if (project) currentEditProjectId = project.id;
 
-    if (project) {
-        title.textContent = 'Edit Project';
-        currentEditProjectId = project.id;
-    } else {
-        title.textContent = 'Add New Project';
-    }
-
-    // Show container first
+    // Show container
     container.style.display = 'block';
 
-    // Use setTimeout to let the browser fully render the visible container
-    // before setting form values - this prevents the browser from silently
-    // discarding value assignments on hidden/transitioning elements
-    setTimeout(() => {
-        // Clear all fields
-        document.getElementById('project-edit-id').value = '';
-        document.getElementById('project-title').value = '';
-        document.getElementById('project-category').value = '';
-        document.getElementById('project-short-desc').value = '';
-        document.getElementById('project-full-desc').value = '';
-        document.getElementById('project-image-url').value = '';
-        document.getElementById('project-impact').value = '';
-        document.getElementById('project-date').value = '';
-        document.getElementById('project-flagship').checked = false;
-        document.getElementById('project-links').value = '';
+    // Clear all fields
+    document.getElementById('project-edit-id').value = '';
+    document.getElementById('project-title').value = '';
+    document.getElementById('project-category').value = '';
+    document.getElementById('project-short-desc').value = '';
+    document.getElementById('project-full-desc').value = '';
+    document.getElementById('project-image-url').value = '';
+    document.getElementById('project-impact').value = '';
+    document.getElementById('project-date').value = '';
+    document.getElementById('project-flagship').checked = false;
+    document.getElementById('project-links').value = '';
 
-        // Fill values if editing
-        if (project) {
-            document.getElementById('project-edit-id').value = project.id;
-            document.getElementById('project-title').value = project.title || '';
-            document.getElementById('project-category').value = project.category || '';
-            document.getElementById('project-short-desc').value = project.shortDescription || '';
-            document.getElementById('project-full-desc').value = project.fullDescription || '';
-            document.getElementById('project-image-url').value = project.imageUrl || '';
-            document.getElementById('project-impact').value = project.impact || '';
-            document.getElementById('project-date').value = project.date || '';
-            document.getElementById('project-flagship').checked = !!project.isFlagship;
-            document.getElementById('project-links').value = (project.links || []).join('\n');
-        }
-        container.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
+    // Fill values if editing
+    if (project) {
+        document.getElementById('project-edit-id').value = project.id;
+        document.getElementById('project-title').value = project.title || '';
+        document.getElementById('project-category').value = project.category || '';
+        document.getElementById('project-short-desc').value = project.shortDescription || '';
+        document.getElementById('project-full-desc').value = project.fullDescription || '';
+        document.getElementById('project-image-url').value = project.imageUrl || '';
+        document.getElementById('project-impact').value = project.impact || '';
+        document.getElementById('project-date').value = project.date || '';
+        document.getElementById('project-flagship').checked = !!project.isFlagship;
+        document.getElementById('project-links').value = (project.links || []).join('\n');
+    }
+
+    container.scrollIntoView({ behavior: 'smooth' });
 }
 
 function hideProjectForm() {
@@ -500,42 +491,36 @@ function showMemberForm(member = null) {
     const title = document.getElementById('member-form-title');
 
     currentEditMemberId = null;
-
-    if (member) {
-        title.textContent = 'Edit Member';
-        currentEditMemberId = member.id;
-    } else {
-        title.textContent = 'Add New Member';
-    }
+    title.textContent = member ? 'Edit Member' : 'Add New Member';
+    if (member) currentEditMemberId = member.id;
 
     container.style.display = 'block';
 
-    setTimeout(() => {
-        document.getElementById('member-edit-id').value = '';
-        document.getElementById('member-name').value = '';
-        document.getElementById('member-type').value = '';
-        document.getElementById('member-role').value = '';
-        document.getElementById('member-photo-url').value = '';
-        document.getElementById('member-bio').value = '';
-        document.getElementById('member-linkedin').value = '';
-        document.getElementById('member-instagram').value = '';
-        document.getElementById('member-facebook').value = '';
-        document.getElementById('member-twitter').value = '';
+    document.getElementById('member-edit-id').value = '';
+    document.getElementById('member-name').value = '';
+    document.getElementById('member-type').value = '';
+    document.getElementById('member-role').value = '';
+    document.getElementById('member-photo-url').value = '';
+    document.getElementById('member-bio').value = '';
+    document.getElementById('member-linkedin').value = '';
+    document.getElementById('member-instagram').value = '';
+    document.getElementById('member-facebook').value = '';
+    document.getElementById('member-twitter').value = '';
 
-        if (member) {
-            document.getElementById('member-edit-id').value = member.id;
-            document.getElementById('member-name').value = member.name || '';
-            document.getElementById('member-type').value = member.type || '';
-            document.getElementById('member-role').value = member.role || '';
-            document.getElementById('member-photo-url').value = member.photoUrl || '';
-            document.getElementById('member-bio').value = member.bio || '';
-            document.getElementById('member-linkedin').value = member.socials?.linkedin || '';
-            document.getElementById('member-instagram').value = member.socials?.instagram || '';
-            document.getElementById('member-facebook').value = member.socials?.facebook || '';
-            document.getElementById('member-twitter').value = member.socials?.twitter || '';
-        }
-        container.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
+    if (member) {
+        document.getElementById('member-edit-id').value = member.id;
+        document.getElementById('member-name').value = member.name || '';
+        document.getElementById('member-type').value = member.type || '';
+        document.getElementById('member-role').value = member.role || '';
+        document.getElementById('member-photo-url').value = member.photoUrl || '';
+        document.getElementById('member-bio').value = member.bio || '';
+        document.getElementById('member-linkedin').value = member.socials?.linkedin || '';
+        document.getElementById('member-instagram').value = member.socials?.instagram || '';
+        document.getElementById('member-facebook').value = member.socials?.facebook || '';
+        document.getElementById('member-twitter').value = member.socials?.twitter || '';
+    }
+
+    container.scrollIntoView({ behavior: 'smooth' });
 }
 
 function hideMemberForm() {
@@ -683,36 +668,30 @@ function showEventForm(event = null) {
     const title = document.getElementById('event-form-title');
 
     currentEditEventId = null;
-
-    if (event) {
-        title.textContent = 'Edit Event';
-        currentEditEventId = event.id;
-    } else {
-        title.textContent = 'Add New Event';
-    }
+    title.textContent = event ? 'Edit Event' : 'Add New Event';
+    if (event) currentEditEventId = event.id;
 
     container.style.display = 'block';
 
-    setTimeout(() => {
-        document.getElementById('event-edit-id').value = '';
-        document.getElementById('event-title').value = '';
-        document.getElementById('event-date-text').value = '';
-        document.getElementById('event-location').value = '';
-        document.getElementById('event-description').value = '';
-        document.getElementById('event-image-url').value = '';
-        document.getElementById('event-upcoming').checked = false;
+    document.getElementById('event-edit-id').value = '';
+    document.getElementById('event-title').value = '';
+    document.getElementById('event-date-text').value = '';
+    document.getElementById('event-location').value = '';
+    document.getElementById('event-description').value = '';
+    document.getElementById('event-image-url').value = '';
+    document.getElementById('event-upcoming').checked = false;
 
-        if (event) {
-            document.getElementById('event-edit-id').value = event.id;
-            document.getElementById('event-title').value = event.title || '';
-            document.getElementById('event-date-text').value = event.date || '';
-            document.getElementById('event-location').value = event.location || '';
-            document.getElementById('event-description').value = event.description || '';
-            document.getElementById('event-image-url').value = event.imageUrl || '';
-            document.getElementById('event-upcoming').checked = !!event.upcoming;
-        }
-        container.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
+    if (event) {
+        document.getElementById('event-edit-id').value = event.id;
+        document.getElementById('event-title').value = event.title || '';
+        document.getElementById('event-date-text').value = event.date || '';
+        document.getElementById('event-location').value = event.location || '';
+        document.getElementById('event-description').value = event.description || '';
+        document.getElementById('event-image-url').value = event.imageUrl || '';
+        document.getElementById('event-upcoming').checked = !!event.upcoming;
+    }
+
+    container.scrollIntoView({ behavior: 'smooth' });
 }
 
 function hideEventForm() {
