@@ -18,6 +18,31 @@ let currentEditProjectId = null;
 let currentEditMemberId = null;
 let currentEditEventId = null;
 
+// ==================== SYNC TO SERVER ====================
+// Saves data to Vercel Blob via API so changes go live immediately
+
+async function syncToServer(type, data) {
+    try {
+        const response = await fetch(`/api/data?type=${type}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-password': 'globalshaper2025'
+            },
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Sync failed');
+        }
+        return true;
+    } catch (error) {
+        console.error(`Failed to sync ${type} to server:`, error);
+        showToast(`Warning: Changes saved locally but failed to sync to server. Use "Download JSON" as backup.`, 'error');
+        return false;
+    }
+}
+
 // ==================== SIMPLE HASH FUNCTION ====================
 // For client-side password check (not for security-critical purposes)
 
@@ -268,6 +293,7 @@ function initProjects() {
             projectsData = projectsData.filter(p => p.id !== id);
             renderProjectsList();
             showToast('Project deleted', 'info');
+            syncToServer('projects', projectsData);
         }
     });
 }
@@ -353,11 +379,23 @@ function htmlToMarkdown(html) {
 
 async function loadProjectsData() {
     try {
-        const response = await fetch('/data/projects.json');
-        projectsData = await response.json();
+        // Try API (Blob) first, fall back to static JSON
+        let response = await fetch('/api/data?type=projects');
+        let data = await response.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            response = await fetch('/data/projects.json');
+            data = await response.json();
+        }
+        projectsData = data;
         renderProjectsList();
     } catch {
-        showToast('Failed to load projects data', 'error');
+        try {
+            const response = await fetch('/data/projects.json');
+            projectsData = await response.json();
+            renderProjectsList();
+        } catch {
+            showToast('Failed to load projects data', 'error');
+        }
     }
 }
 
@@ -498,6 +536,7 @@ function saveProject() {
 
     renderProjectsList();
     hideProjectForm();
+    syncToServer('projects', projectsData);
 }
 
 function downloadProjectsJSON() {
@@ -540,6 +579,7 @@ function initMembers() {
             membersData = membersData.filter(m => m.id !== id);
             renderMembersList();
             showToast('Member deleted', 'info');
+            syncToServer('members', membersData);
         }
     });
 
@@ -556,11 +596,22 @@ function initMembers() {
 
 async function loadMembersData() {
     try {
-        const response = await fetch('/data/members.json');
-        membersData = await response.json();
+        let response = await fetch('/api/data?type=members');
+        let data = await response.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            response = await fetch('/data/members.json');
+            data = await response.json();
+        }
+        membersData = data;
         renderMembersList();
     } catch {
-        showToast('Failed to load members data', 'error');
+        try {
+            const response = await fetch('/data/members.json');
+            membersData = await response.json();
+            renderMembersList();
+        } catch {
+            showToast('Failed to load members data', 'error');
+        }
     }
 }
 
@@ -691,6 +742,7 @@ function saveMember() {
 
     renderMembersList();
     hideMemberForm();
+    syncToServer('members', membersData);
 }
 
 function downloadMembersJSON() {
@@ -733,20 +785,30 @@ function initEvents() {
             eventsData = eventsData.filter(ev => ev.id !== id);
             renderEventsList();
             showToast('Event deleted', 'info');
+            syncToServer('events', eventsData);
         }
     });
 }
 
 async function loadEventsData() {
     try {
-        const response = await fetch('/data/events.json');
-        eventsData = await response.json();
+        let response = await fetch('/api/data?type=events');
+        let data = await response.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            response = await fetch('/data/events.json');
+            data = await response.json();
+        }
+        eventsData = data;
         renderEventsList();
     } catch {
-        // If no events.json exists yet, start with empty array
-        eventsData = [];
-        renderEventsList();
-    }
+        try {
+            const response = await fetch('/data/events.json');
+            eventsData = await response.json();
+            renderEventsList();
+        } catch {
+            eventsData = [];
+            renderEventsList();
+        }
 }
 
 function renderEventsList() {
@@ -854,6 +916,7 @@ function saveEvent() {
 
     renderEventsList();
     hideEventForm();
+    syncToServer('events', eventsData);
 }
 
 function downloadEventsJSON() {

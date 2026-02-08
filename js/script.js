@@ -202,6 +202,13 @@ function showFormMessage(message, type) {
 
 async function loadProjects() {
     try {
+        // Try API (Blob storage) first for live data
+        const apiResp = await fetch('/api/data?type=projects');
+        const apiData = await apiResp.json();
+        if (Array.isArray(apiData) && apiData.length > 0) return apiData;
+    } catch {}
+    try {
+        // Fallback to static JSON
         const response = await fetch('/data/projects.json');
         return await response.json();
     } catch (e) {
@@ -212,6 +219,11 @@ async function loadProjects() {
 
 async function loadMembers() {
     try {
+        const apiResp = await fetch('/api/data?type=members');
+        const apiData = await apiResp.json();
+        if (Array.isArray(apiData) && apiData.length > 0) return apiData;
+    } catch {}
+    try {
         const response = await fetch('/data/members.json');
         return await response.json();
     } catch (e) {
@@ -221,6 +233,11 @@ async function loadMembers() {
 }
 
 async function loadEvents() {
+    try {
+        const apiResp = await fetch('/api/data?type=events');
+        const apiData = await apiResp.json();
+        if (Array.isArray(apiData) && apiData.length > 0) return apiData;
+    } catch {}
     try {
         const response = await fetch('/data/events.json');
         return await response.json();
