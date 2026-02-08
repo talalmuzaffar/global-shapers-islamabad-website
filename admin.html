@@ -63,6 +63,10 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                         Members
                     </button>
+                    <button class="tab-btn" data-tab="events">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        Events
+                    </button>
                 </div>
             </div>
         </div>
@@ -283,6 +287,67 @@
 
                     <!-- Members List -->
                     <div id="members-list" class="items-list"></div>
+                </div>
+
+                <!-- ==================== EVENTS TAB ==================== -->
+                <div id="tab-events" class="tab-panel">
+                    <div class="panel-header">
+                        <h2>Manage Events</h2>
+                        <div class="panel-actions">
+                            <button id="add-event-btn" class="admin-btn primary">+ Add Event</button>
+                            <button id="download-events-btn" class="admin-btn">Download JSON</button>
+                        </div>
+                    </div>
+
+                    <!-- Event Form (hidden by default) -->
+                    <div id="event-form-container" class="form-container" style="display: none;">
+                        <div class="form-card">
+                            <div class="form-card-header">
+                                <h3 id="event-form-title">Add New Event</h3>
+                                <button id="close-event-form" class="close-btn">&times;</button>
+                            </div>
+                            <form id="event-form">
+                                <input type="hidden" id="event-edit-id" value="">
+                                <div class="form-group">
+                                    <label for="event-title">Event Title *</label>
+                                    <input type="text" id="event-title" required placeholder="e.g. Global Shapers North Pakistan Retreat 2026">
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="event-date-text">Date</label>
+                                        <input type="text" id="event-date-text" placeholder="e.g. March 15-17, 2026">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="event-location">Location</label>
+                                        <input type="text" id="event-location" placeholder="e.g. Islamabad">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="event-description">Description *</label>
+                                    <textarea id="event-description" rows="3" required placeholder="Brief description of the event..."></textarea>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="event-image-url">Image URL (public URL)</label>
+                                        <input type="url" id="event-image-url" placeholder="https://example.com/event-image.jpg">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="event-upcoming" checked>
+                                            <span>Upcoming Event</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="button" id="cancel-event-btn" class="admin-btn">Cancel</button>
+                                    <button type="submit" class="admin-btn primary">Save Event</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Events List -->
+                    <div id="events-list" class="items-list"></div>
                 </div>
 
             </div>

@@ -1,4 +1,4 @@
-// Admin Panel JavaScript - CMS for Projects & Members
+// Admin Panel JavaScript - CMS for Projects, Members & Events
 // Works without backend API - uses client-side password for access control
 
 const ADMIN_AUTH_KEY = 'admin_authenticated';
@@ -12,7 +12,11 @@ let isAuthenticated = false;
 // Data stores
 let projectsData = [];
 let membersData = [];
+let eventsData = [];
 let currentMemberFilter = 'all';
+let currentEditProjectId = null;
+let currentEditMemberId = null;
+let currentEditEventId = null;
 
 // ==================== SIMPLE HASH FUNCTION ====================
 // For client-side password check (not for security-critical purposes)
@@ -101,6 +105,7 @@ function initAdminPanel() {
     initSubmissions();
     initProjects();
     initMembers();
+    initEvents();
 }
 
 // ==================== TABS ====================
@@ -216,6 +221,28 @@ function initProjects() {
         e.preventDefault();
         saveProject();
     });
+
+    // Event delegation for edit/delete buttons
+    document.getElementById('projects-list')?.addEventListener('click', function (e) {
+        const editBtn = e.target.closest('.icon-btn.edit');
+        const deleteBtn = e.target.closest('.icon-btn.delete');
+        const card = e.target.closest('.item-card');
+        if (!card) return;
+        const id = card.dataset.id;
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const project = projectsData.find(p => p.id === id);
+            if (project) showProjectForm(project);
+        } else if (deleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!confirm('Are you sure you want to delete this project?')) return;
+            projectsData = projectsData.filter(p => p.id !== id);
+            renderProjectsList();
+            showToast('Project deleted', 'info');
+        }
+    });
 }
 
 async function loadProjectsData() {
@@ -240,7 +267,7 @@ function renderProjectsList() {
     };
 
     list.innerHTML = projectsData.map(project => `
-        <div class="item-card" data-id="${project.id}">
+        <div class="item-card" data-id="${escapeHtml(project.id)}">
             <div class="item-card-info">
                 <h4>${escapeHtml(project.title)}</h4>
                 <p>${escapeHtml(project.shortDescription)}</p>
@@ -252,10 +279,10 @@ function renderProjectsList() {
                 </div>
             </div>
             <div class="item-card-actions">
-                <button class="icon-btn edit" onclick="editProject('${project.id}')" title="Edit">
+                <button class="icon-btn edit" title="Edit">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button class="icon-btn delete" onclick="deleteProject('${project.id}')" title="Delete">
+                <button class="icon-btn delete" title="Delete">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
             </div>
@@ -266,26 +293,31 @@ function renderProjectsList() {
 function showProjectForm(project = null) {
     const container = document.getElementById('project-form-container');
     const title = document.getElementById('project-form-title');
-    container.style.display = 'block';
+    const form = document.getElementById('project-form');
+
+    // Reset form FIRST, then fill values if editing
+    form.reset();
+    document.getElementById('project-edit-id').value = '';
+    currentEditProjectId = null;
 
     if (project) {
         title.textContent = 'Edit Project';
+        currentEditProjectId = project.id;
         document.getElementById('project-edit-id').value = project.id;
-        document.getElementById('project-title').value = project.title;
-        document.getElementById('project-category').value = project.category;
-        document.getElementById('project-short-desc').value = project.shortDescription;
-        document.getElementById('project-full-desc').value = project.fullDescription;
+        document.getElementById('project-title').value = project.title || '';
+        document.getElementById('project-category').value = project.category || '';
+        document.getElementById('project-short-desc').value = project.shortDescription || '';
+        document.getElementById('project-full-desc').value = project.fullDescription || '';
         document.getElementById('project-image-url').value = project.imageUrl || '';
         document.getElementById('project-impact').value = project.impact || '';
         document.getElementById('project-date').value = project.date || '';
-        document.getElementById('project-flagship').checked = project.isFlagship;
+        document.getElementById('project-flagship').checked = !!project.isFlagship;
         document.getElementById('project-links').value = (project.links || []).join('\n');
     } else {
         title.textContent = 'Add New Project';
-        document.getElementById('project-form').reset();
-        document.getElementById('project-edit-id').value = '';
     }
 
+    container.style.display = 'block';
     container.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -293,6 +325,7 @@ function hideProjectForm() {
     document.getElementById('project-form-container').style.display = 'none';
     document.getElementById('project-form').reset();
     document.getElementById('project-edit-id').value = '';
+    currentEditProjectId = null;
 }
 
 function saveProject() {
@@ -332,18 +365,6 @@ function saveProject() {
     hideProjectForm();
 }
 
-window.editProject = function (id) {
-    const project = projectsData.find(p => p.id === id);
-    if (project) showProjectForm(project);
-};
-
-window.deleteProject = function (id) {
-    if (!confirm('Are you sure you want to delete this project?')) return;
-    projectsData = projectsData.filter(p => p.id !== id);
-    renderProjectsList();
-    showToast('Project deleted', 'info');
-};
-
 function downloadProjectsJSON() {
     const json = JSON.stringify(projectsData, null, 2);
     downloadFile(json, 'projects.json', 'application/json');
@@ -363,6 +384,28 @@ function initMembers() {
     document.getElementById('member-form')?.addEventListener('submit', function (e) {
         e.preventDefault();
         saveMember();
+    });
+
+    // Event delegation for edit/delete buttons
+    document.getElementById('members-list')?.addEventListener('click', function (e) {
+        const editBtn = e.target.closest('.icon-btn.edit');
+        const deleteBtn = e.target.closest('.icon-btn.delete');
+        const card = e.target.closest('.item-card');
+        if (!card) return;
+        const id = card.dataset.id;
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const member = membersData.find(m => m.id === id);
+            if (member) showMemberForm(member);
+        } else if (deleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!confirm('Are you sure you want to delete this member?')) return;
+            membersData = membersData.filter(m => m.id !== id);
+            renderMembersList();
+            showToast('Member deleted', 'info');
+        }
     });
 
     // Filter pills
@@ -402,7 +445,7 @@ function renderMembersList() {
         if (member.socials?.twitter) socialsHtml.push('Twitter');
 
         return `
-        <div class="item-card" data-id="${member.id}">
+        <div class="item-card" data-id="${escapeHtml(member.id)}">
             <div class="item-card-info">
                 <h4>${escapeHtml(member.name)}</h4>
                 ${member.role ? '<p style="color: var(--primary-blue); font-weight: 600; margin-bottom: 4px;">' + escapeHtml(member.role) + '</p>' : ''}
@@ -414,10 +457,10 @@ function renderMembersList() {
                 </div>
             </div>
             <div class="item-card-actions">
-                <button class="icon-btn edit" onclick="editMember('${member.id}')" title="Edit">
+                <button class="icon-btn edit" title="Edit">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button class="icon-btn delete" onclick="deleteMember('${member.id}')" title="Delete">
+                <button class="icon-btn delete" title="Delete">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
             </div>
@@ -429,13 +472,19 @@ function renderMembersList() {
 function showMemberForm(member = null) {
     const container = document.getElementById('member-form-container');
     const title = document.getElementById('member-form-title');
-    container.style.display = 'block';
+    const form = document.getElementById('member-form');
+
+    // Reset form FIRST, then fill values if editing
+    form.reset();
+    document.getElementById('member-edit-id').value = '';
+    currentEditMemberId = null;
 
     if (member) {
         title.textContent = 'Edit Member';
+        currentEditMemberId = member.id;
         document.getElementById('member-edit-id').value = member.id;
-        document.getElementById('member-name').value = member.name;
-        document.getElementById('member-type').value = member.type;
+        document.getElementById('member-name').value = member.name || '';
+        document.getElementById('member-type').value = member.type || '';
         document.getElementById('member-role').value = member.role || '';
         document.getElementById('member-photo-url').value = member.photoUrl || '';
         document.getElementById('member-bio').value = member.bio || '';
@@ -445,10 +494,9 @@ function showMemberForm(member = null) {
         document.getElementById('member-twitter').value = member.socials?.twitter || '';
     } else {
         title.textContent = 'Add New Member';
-        document.getElementById('member-form').reset();
-        document.getElementById('member-edit-id').value = '';
     }
 
+    container.style.display = 'block';
     container.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -456,6 +504,7 @@ function hideMemberForm() {
     document.getElementById('member-form-container').style.display = 'none';
     document.getElementById('member-form').reset();
     document.getElementById('member-edit-id').value = '';
+    currentEditMemberId = null;
 }
 
 function saveMember() {
@@ -495,22 +544,164 @@ function saveMember() {
     hideMemberForm();
 }
 
-window.editMember = function (id) {
-    const member = membersData.find(m => m.id === id);
-    if (member) showMemberForm(member);
-};
-
-window.deleteMember = function (id) {
-    if (!confirm('Are you sure you want to delete this member?')) return;
-    membersData = membersData.filter(m => m.id !== id);
-    renderMembersList();
-    showToast('Member deleted', 'info');
-};
-
 function downloadMembersJSON() {
     const json = JSON.stringify(membersData, null, 2);
     downloadFile(json, 'members.json', 'application/json');
     showToast('Download members.json — replace data/members.json in your repo and redeploy', 'info');
+}
+
+// ==================== EVENTS ====================
+
+function initEvents() {
+    loadEventsData();
+
+    document.getElementById('add-event-btn')?.addEventListener('click', () => showEventForm());
+    document.getElementById('close-event-form')?.addEventListener('click', hideEventForm);
+    document.getElementById('cancel-event-btn')?.addEventListener('click', hideEventForm);
+    document.getElementById('download-events-btn')?.addEventListener('click', downloadEventsJSON);
+
+    document.getElementById('event-form')?.addEventListener('submit', function (e) {
+        e.preventDefault();
+        saveEvent();
+    });
+
+    // Event delegation for edit/delete buttons
+    document.getElementById('events-list')?.addEventListener('click', function (e) {
+        const editBtn = e.target.closest('.icon-btn.edit');
+        const deleteBtn = e.target.closest('.icon-btn.delete');
+        const card = e.target.closest('.item-card');
+        if (!card) return;
+        const id = card.dataset.id;
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const event = eventsData.find(ev => ev.id === id);
+            if (event) showEventForm(event);
+        } else if (deleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!confirm('Are you sure you want to delete this event?')) return;
+            eventsData = eventsData.filter(ev => ev.id !== id);
+            renderEventsList();
+            showToast('Event deleted', 'info');
+        }
+    });
+}
+
+async function loadEventsData() {
+    try {
+        const response = await fetch('/data/events.json');
+        eventsData = await response.json();
+        renderEventsList();
+    } catch {
+        // If no events.json exists yet, start with empty array
+        eventsData = [];
+        renderEventsList();
+    }
+}
+
+function renderEventsList() {
+    const list = document.getElementById('events-list');
+    if (!list) return;
+
+    if (!eventsData.length) {
+        list.innerHTML = '<div class="empty-state"><p>No events yet. Click "+ Add Event" to create one.</p></div>';
+        return;
+    }
+
+    list.innerHTML = eventsData.map(event => `
+        <div class="item-card" data-id="${escapeHtml(event.id)}">
+            <div class="item-card-info">
+                <h4>${escapeHtml(event.title)}</h4>
+                <p>${escapeHtml(event.description)}</p>
+                <div class="item-card-meta">
+                    ${event.date ? '<span class="meta-badge category">' + escapeHtml(event.date) + '</span>' : ''}
+                    ${event.location ? '<span class="meta-badge impact">' + escapeHtml(event.location) + '</span>' : ''}
+                    ${event.upcoming ? '<span class="meta-badge flagship">Upcoming</span>' : '<span class="meta-badge type-alumni">Past</span>'}
+                </div>
+            </div>
+            <div class="item-card-actions">
+                <button class="icon-btn edit" title="Edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="icon-btn delete" title="Delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showEventForm(event = null) {
+    const container = document.getElementById('event-form-container');
+    const title = document.getElementById('event-form-title');
+    const form = document.getElementById('event-form');
+
+    form.reset();
+    document.getElementById('event-edit-id').value = '';
+    currentEditEventId = null;
+
+    if (event) {
+        title.textContent = 'Edit Event';
+        currentEditEventId = event.id;
+        document.getElementById('event-edit-id').value = event.id;
+        document.getElementById('event-title').value = event.title || '';
+        document.getElementById('event-date-text').value = event.date || '';
+        document.getElementById('event-location').value = event.location || '';
+        document.getElementById('event-description').value = event.description || '';
+        document.getElementById('event-image-url').value = event.imageUrl || '';
+        document.getElementById('event-upcoming').checked = !!event.upcoming;
+    } else {
+        title.textContent = 'Add New Event';
+    }
+
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideEventForm() {
+    document.getElementById('event-form-container').style.display = 'none';
+    document.getElementById('event-form').reset();
+    document.getElementById('event-edit-id').value = '';
+    currentEditEventId = null;
+}
+
+function saveEvent() {
+    const editId = document.getElementById('event-edit-id').value;
+    const titleVal = document.getElementById('event-title').value.trim();
+
+    const eventObj = {
+        id: editId || generateSlug(titleVal),
+        title: titleVal,
+        date: document.getElementById('event-date-text').value.trim(),
+        location: document.getElementById('event-location').value.trim(),
+        description: document.getElementById('event-description').value.trim(),
+        imageUrl: document.getElementById('event-image-url').value.trim(),
+        upcoming: document.getElementById('event-upcoming').checked
+    };
+
+    if (editId) {
+        const idx = eventsData.findIndex(ev => ev.id === editId);
+        if (idx !== -1) {
+            eventsData[idx] = eventObj;
+            showToast('Event updated successfully', 'success');
+        }
+    } else {
+        if (eventsData.some(ev => ev.id === eventObj.id)) {
+            eventObj.id += '-' + Date.now();
+        }
+        eventsData.push(eventObj);
+        showToast('Event added successfully', 'success');
+    }
+
+    renderEventsList();
+    hideEventForm();
+}
+
+function downloadEventsJSON() {
+    const json = JSON.stringify(eventsData, null, 2);
+    downloadFile(json, 'events.json', 'application/json');
+    showToast('Download events.json — replace data/events.json in your repo and redeploy', 'info');
 }
 
 // ==================== UTILITIES ====================

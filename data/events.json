@@ -1,0 +1,20 @@
+[
+  {
+    "id": "north-pakistan-retreat-2025",
+    "title": "Global Shapers North Pakistan Retreat 2025",
+    "date": "March 15-17, 2025",
+    "location": "Islamabad",
+    "description": "Annual gathering of shapers from northern hubs to share experiences and plan collaborative initiatives.",
+    "imageUrl": "/images/event-north-retreat.png",
+    "upcoming": false
+  },
+  {
+    "id": "shaping-pakistan-2025",
+    "title": "Shaping Pakistan 2025: National Shapers Conference",
+    "date": "April 22-23, 2025",
+    "location": "Karachi",
+    "description": "National conference bringing together all Pakistan hubs to address key challenges and opportunities.",
+    "imageUrl": "/images/event-shaping-pakistan.png",
+    "upcoming": false
+  }
+]
