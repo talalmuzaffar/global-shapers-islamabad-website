@@ -293,38 +293,64 @@ function renderProjectsList() {
 function showProjectForm(project = null) {
     const container = document.getElementById('project-form-container');
     const title = document.getElementById('project-form-title');
-    const form = document.getElementById('project-form');
 
-    // Reset form FIRST, then fill values if editing
-    form.reset();
-    document.getElementById('project-edit-id').value = '';
     currentEditProjectId = null;
 
     if (project) {
         title.textContent = 'Edit Project';
         currentEditProjectId = project.id;
-        document.getElementById('project-edit-id').value = project.id;
-        document.getElementById('project-title').value = project.title || '';
-        document.getElementById('project-category').value = project.category || '';
-        document.getElementById('project-short-desc').value = project.shortDescription || '';
-        document.getElementById('project-full-desc').value = project.fullDescription || '';
-        document.getElementById('project-image-url').value = project.imageUrl || '';
-        document.getElementById('project-impact').value = project.impact || '';
-        document.getElementById('project-date').value = project.date || '';
-        document.getElementById('project-flagship').checked = !!project.isFlagship;
-        document.getElementById('project-links').value = (project.links || []).join('\n');
     } else {
         title.textContent = 'Add New Project';
     }
 
+    // Show container first
     container.style.display = 'block';
-    container.scrollIntoView({ behavior: 'smooth' });
+
+    // Use setTimeout to let the browser fully render the visible container
+    // before setting form values - this prevents the browser from silently
+    // discarding value assignments on hidden/transitioning elements
+    setTimeout(() => {
+        // Clear all fields
+        document.getElementById('project-edit-id').value = '';
+        document.getElementById('project-title').value = '';
+        document.getElementById('project-category').value = '';
+        document.getElementById('project-short-desc').value = '';
+        document.getElementById('project-full-desc').value = '';
+        document.getElementById('project-image-url').value = '';
+        document.getElementById('project-impact').value = '';
+        document.getElementById('project-date').value = '';
+        document.getElementById('project-flagship').checked = false;
+        document.getElementById('project-links').value = '';
+
+        // Fill values if editing
+        if (project) {
+            document.getElementById('project-edit-id').value = project.id;
+            document.getElementById('project-title').value = project.title || '';
+            document.getElementById('project-category').value = project.category || '';
+            document.getElementById('project-short-desc').value = project.shortDescription || '';
+            document.getElementById('project-full-desc').value = project.fullDescription || '';
+            document.getElementById('project-image-url').value = project.imageUrl || '';
+            document.getElementById('project-impact').value = project.impact || '';
+            document.getElementById('project-date').value = project.date || '';
+            document.getElementById('project-flagship').checked = !!project.isFlagship;
+            document.getElementById('project-links').value = (project.links || []).join('\n');
+        }
+        container.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
 }
 
 function hideProjectForm() {
     document.getElementById('project-form-container').style.display = 'none';
-    document.getElementById('project-form').reset();
     document.getElementById('project-edit-id').value = '';
+    document.getElementById('project-title').value = '';
+    document.getElementById('project-category').value = '';
+    document.getElementById('project-short-desc').value = '';
+    document.getElementById('project-full-desc').value = '';
+    document.getElementById('project-image-url').value = '';
+    document.getElementById('project-impact').value = '';
+    document.getElementById('project-date').value = '';
+    document.getElementById('project-flagship').checked = false;
+    document.getElementById('project-links').value = '';
     currentEditProjectId = null;
 }
 
@@ -472,38 +498,58 @@ function renderMembersList() {
 function showMemberForm(member = null) {
     const container = document.getElementById('member-form-container');
     const title = document.getElementById('member-form-title');
-    const form = document.getElementById('member-form');
 
-    // Reset form FIRST, then fill values if editing
-    form.reset();
-    document.getElementById('member-edit-id').value = '';
     currentEditMemberId = null;
 
     if (member) {
         title.textContent = 'Edit Member';
         currentEditMemberId = member.id;
-        document.getElementById('member-edit-id').value = member.id;
-        document.getElementById('member-name').value = member.name || '';
-        document.getElementById('member-type').value = member.type || '';
-        document.getElementById('member-role').value = member.role || '';
-        document.getElementById('member-photo-url').value = member.photoUrl || '';
-        document.getElementById('member-bio').value = member.bio || '';
-        document.getElementById('member-linkedin').value = member.socials?.linkedin || '';
-        document.getElementById('member-instagram').value = member.socials?.instagram || '';
-        document.getElementById('member-facebook').value = member.socials?.facebook || '';
-        document.getElementById('member-twitter').value = member.socials?.twitter || '';
     } else {
         title.textContent = 'Add New Member';
     }
 
     container.style.display = 'block';
-    container.scrollIntoView({ behavior: 'smooth' });
+
+    setTimeout(() => {
+        document.getElementById('member-edit-id').value = '';
+        document.getElementById('member-name').value = '';
+        document.getElementById('member-type').value = '';
+        document.getElementById('member-role').value = '';
+        document.getElementById('member-photo-url').value = '';
+        document.getElementById('member-bio').value = '';
+        document.getElementById('member-linkedin').value = '';
+        document.getElementById('member-instagram').value = '';
+        document.getElementById('member-facebook').value = '';
+        document.getElementById('member-twitter').value = '';
+
+        if (member) {
+            document.getElementById('member-edit-id').value = member.id;
+            document.getElementById('member-name').value = member.name || '';
+            document.getElementById('member-type').value = member.type || '';
+            document.getElementById('member-role').value = member.role || '';
+            document.getElementById('member-photo-url').value = member.photoUrl || '';
+            document.getElementById('member-bio').value = member.bio || '';
+            document.getElementById('member-linkedin').value = member.socials?.linkedin || '';
+            document.getElementById('member-instagram').value = member.socials?.instagram || '';
+            document.getElementById('member-facebook').value = member.socials?.facebook || '';
+            document.getElementById('member-twitter').value = member.socials?.twitter || '';
+        }
+        container.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
 }
 
 function hideMemberForm() {
     document.getElementById('member-form-container').style.display = 'none';
-    document.getElementById('member-form').reset();
     document.getElementById('member-edit-id').value = '';
+    document.getElementById('member-name').value = '';
+    document.getElementById('member-type').value = '';
+    document.getElementById('member-role').value = '';
+    document.getElementById('member-photo-url').value = '';
+    document.getElementById('member-bio').value = '';
+    document.getElementById('member-linkedin').value = '';
+    document.getElementById('member-instagram').value = '';
+    document.getElementById('member-facebook').value = '';
+    document.getElementById('member-twitter').value = '';
     currentEditMemberId = null;
 }
 
@@ -635,34 +681,49 @@ function renderEventsList() {
 function showEventForm(event = null) {
     const container = document.getElementById('event-form-container');
     const title = document.getElementById('event-form-title');
-    const form = document.getElementById('event-form');
 
-    form.reset();
-    document.getElementById('event-edit-id').value = '';
     currentEditEventId = null;
 
     if (event) {
         title.textContent = 'Edit Event';
         currentEditEventId = event.id;
-        document.getElementById('event-edit-id').value = event.id;
-        document.getElementById('event-title').value = event.title || '';
-        document.getElementById('event-date-text').value = event.date || '';
-        document.getElementById('event-location').value = event.location || '';
-        document.getElementById('event-description').value = event.description || '';
-        document.getElementById('event-image-url').value = event.imageUrl || '';
-        document.getElementById('event-upcoming').checked = !!event.upcoming;
     } else {
         title.textContent = 'Add New Event';
     }
 
     container.style.display = 'block';
-    container.scrollIntoView({ behavior: 'smooth' });
+
+    setTimeout(() => {
+        document.getElementById('event-edit-id').value = '';
+        document.getElementById('event-title').value = '';
+        document.getElementById('event-date-text').value = '';
+        document.getElementById('event-location').value = '';
+        document.getElementById('event-description').value = '';
+        document.getElementById('event-image-url').value = '';
+        document.getElementById('event-upcoming').checked = false;
+
+        if (event) {
+            document.getElementById('event-edit-id').value = event.id;
+            document.getElementById('event-title').value = event.title || '';
+            document.getElementById('event-date-text').value = event.date || '';
+            document.getElementById('event-location').value = event.location || '';
+            document.getElementById('event-description').value = event.description || '';
+            document.getElementById('event-image-url').value = event.imageUrl || '';
+            document.getElementById('event-upcoming').checked = !!event.upcoming;
+        }
+        container.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
 }
 
 function hideEventForm() {
     document.getElementById('event-form-container').style.display = 'none';
-    document.getElementById('event-form').reset();
     document.getElementById('event-edit-id').value = '';
+    document.getElementById('event-title').value = '';
+    document.getElementById('event-date-text').value = '';
+    document.getElementById('event-location').value = '';
+    document.getElementById('event-description').value = '';
+    document.getElementById('event-image-url').value = '';
+    document.getElementById('event-upcoming').checked = false;
     currentEditEventId = null;
 }
 
