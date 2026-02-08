@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <!-- Login Screen -->
@@ -160,8 +161,28 @@
                                     <input type="text" id="project-short-desc" required placeholder="Brief summary for project cards">
                                 </div>
                                 <div class="form-group">
-                                    <label for="project-full-desc">Full Description (HTML supported) *</label>
-                                    <textarea id="project-full-desc" rows="8" required placeholder="<p>Detailed description...</p>"></textarea>
+                                    <label for="project-full-desc">Full Description (Markdown) *</label>
+                                    <div class="markdown-toolbar">
+                                        <button type="button" class="md-btn" data-md="bold" title="Bold"><b>B</b></button>
+                                        <button type="button" class="md-btn" data-md="italic" title="Italic"><i>I</i></button>
+                                        <button type="button" class="md-btn" data-md="heading" title="Heading">H</button>
+                                        <button type="button" class="md-btn" data-md="ul" title="Bullet List">• List</button>
+                                        <button type="button" class="md-btn" data-md="link" title="Link">Link</button>
+                                        <span class="md-toolbar-spacer"></span>
+                                        <button type="button" class="md-btn preview-toggle" id="toggle-md-preview">Preview</button>
+                                    </div>
+                                    <textarea id="project-full-desc" rows="10" required placeholder="Write your project description using Markdown...
+
+## About the Project
+Describe the project here. Use **bold** for emphasis.
+
+## Impact
+- Point one
+- Point two
+
+[Learn more](https://example.com)"></textarea>
+                                    <div id="md-preview" class="md-preview" style="display: none;"></div>
+                                    <small class="form-help">Use Markdown formatting: **bold**, *italic*, ## Heading, - bullet list, [link text](url)</small>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">

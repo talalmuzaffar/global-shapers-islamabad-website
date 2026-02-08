@@ -222,6 +222,33 @@ function initProjects() {
         saveProject();
     });
 
+    // Markdown toolbar buttons
+    document.querySelectorAll('.markdown-toolbar .md-btn[data-md]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const textarea = document.getElementById('project-full-desc');
+            const action = this.dataset.md;
+            insertMarkdown(textarea, action);
+        });
+    });
+
+    // Markdown live preview toggle
+    document.getElementById('toggle-md-preview')?.addEventListener('click', function () {
+        const textarea = document.getElementById('project-full-desc');
+        const preview = document.getElementById('md-preview');
+        if (preview.style.display === 'none') {
+            preview.innerHTML = marked.parse(textarea.value || '');
+            preview.style.display = 'block';
+            textarea.style.display = 'none';
+            this.textContent = 'Edit';
+            this.classList.add('active');
+        } else {
+            preview.style.display = 'none';
+            textarea.style.display = '';
+            this.textContent = 'Preview';
+            this.classList.remove('active');
+        }
+    });
+
     // Event delegation for edit/delete buttons
     document.getElementById('projects-list')?.addEventListener('click', function (e) {
         const editBtn = e.target.closest('.icon-btn.edit');
@@ -243,6 +270,85 @@ function initProjects() {
             showToast('Project deleted', 'info');
         }
     });
+}
+
+// Insert Markdown syntax at cursor position
+function insertMarkdown(textarea, action) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = textarea.value.substring(start, end);
+    let before = '', after = '', insert = '';
+
+    switch (action) {
+        case 'bold':
+            before = '**'; after = '**';
+            insert = selected || 'bold text';
+            break;
+        case 'italic':
+            before = '*'; after = '*';
+            insert = selected || 'italic text';
+            break;
+        case 'heading':
+            before = '\n## '; after = '\n';
+            insert = selected || 'Heading';
+            break;
+        case 'ul':
+            before = '\n- ';
+            insert = selected || 'List item';
+            after = '\n';
+            break;
+        case 'link':
+            if (selected) {
+                before = '['; after = '](url)';
+                insert = selected;
+            } else {
+                insert = '[link text](https://example.com)';
+            }
+            break;
+    }
+
+    const replacement = before + insert + after;
+    textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+    textarea.focus();
+    textarea.selectionStart = start + before.length;
+    textarea.selectionEnd = start + before.length + insert.length;
+}
+
+// Convert basic HTML to Markdown (for editing legacy HTML descriptions)
+function htmlToMarkdown(html) {
+    if (!html) return '';
+    // If it doesn't look like HTML, return as-is (already Markdown)
+    if (!html.includes('<')) return html;
+    let md = html;
+    // Headings
+    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n');
+    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n');
+    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n');
+    md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n');
+    // Bold & italic
+    md = md.replace(/<strong>(.*?)<\/strong>/gi, '**$1**');
+    md = md.replace(/<b>(.*?)<\/b>/gi, '**$1**');
+    md = md.replace(/<em>(.*?)<\/em>/gi, '*$1*');
+    md = md.replace(/<i>(.*?)<\/i>/gi, '*$1*');
+    // Links
+    md = md.replace(/<a[^>]+href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
+    // List items
+    md = md.replace(/<li>(.*?)<\/li>/gi, '- $1\n');
+    md = md.replace(/<\/?[uo]l[^>]*>/gi, '\n');
+    // Paragraphs & breaks
+    md = md.replace(/<\/p>/gi, '\n\n');
+    md = md.replace(/<p[^>]*>/gi, '');
+    md = md.replace(/<br\s*\/?>/gi, '\n');
+    // Strip remaining tags
+    md = md.replace(/<[^>]+>/g, '');
+    // Clean up HTML entities
+    md = md.replace(/&amp;/g, '&');
+    md = md.replace(/&lt;/g, '<');
+    md = md.replace(/&gt;/g, '>');
+    md = md.replace(/&quot;/g, '"');
+    // Clean up excessive whitespace
+    md = md.replace(/\n{3,}/g, '\n\n');
+    return md.trim();
 }
 
 async function loadProjectsData() {
@@ -313,13 +419,21 @@ function showProjectForm(project = null) {
     document.getElementById('project-flagship').checked = false;
     document.getElementById('project-links').value = '';
 
+    // Reset markdown preview state
+    const mdPreview = document.getElementById('md-preview');
+    const mdToggle = document.getElementById('toggle-md-preview');
+    if (mdPreview) mdPreview.style.display = 'none';
+    if (mdToggle) { mdToggle.textContent = 'Preview'; mdToggle.classList.remove('active'); }
+    document.getElementById('project-full-desc').style.display = '';
+
     // Fill values if editing
     if (project) {
         document.getElementById('project-edit-id').value = project.id;
         document.getElementById('project-title').value = project.title || '';
         document.getElementById('project-category').value = project.category || '';
         document.getElementById('project-short-desc').value = project.shortDescription || '';
-        document.getElementById('project-full-desc').value = project.fullDescription || '';
+        // Convert HTML to Markdown for editing
+        document.getElementById('project-full-desc').value = htmlToMarkdown(project.fullDescription || '');
         document.getElementById('project-image-url').value = project.imageUrl || '';
         document.getElementById('project-impact').value = project.impact || '';
         document.getElementById('project-date').value = project.date || '';
@@ -351,12 +465,16 @@ function saveProject() {
     const linksText = document.getElementById('project-links').value.trim();
     const links = linksText ? linksText.split('\n').map(l => l.trim()).filter(l => l) : [];
 
+    // Convert Markdown to HTML for storage (public pages render HTML directly)
+    const markdownContent = document.getElementById('project-full-desc').value.trim();
+    const htmlContent = typeof marked !== 'undefined' ? marked.parse(markdownContent) : markdownContent;
+
     const projectObj = {
         id: editId || generateSlug(titleVal),
         title: titleVal,
         category: document.getElementById('project-category').value,
         shortDescription: document.getElementById('project-short-desc').value.trim(),
-        fullDescription: document.getElementById('project-full-desc').value.trim(),
+        fullDescription: htmlContent,
         imageUrl: document.getElementById('project-image-url').value.trim(),
         impact: document.getElementById('project-impact').value.trim(),
         date: document.getElementById('project-date').value.trim(),
