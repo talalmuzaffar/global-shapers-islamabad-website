@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             },
-            { threshold: 0.05, rootMargin: '0px 0px 0px 0px' }
+            { threshold: 0.01, rootMargin: '0px 0px 200px 0px' }
         );
 
         fadeElements.forEach(el => observer.observe(el));
@@ -311,6 +311,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         const catProjects = grouped[cat] || [];
         if (!catProjects.length) return;
 
+        const carouselId = 'carousel-' + cat;
         html += `
         <section class="section ${config.sectionClass}">
             <div class="container">
@@ -319,16 +320,26 @@ document.addEventListener('DOMContentLoaded', async function () {
                         <div class="category-icon">${config.icon}</div>
                         <h2 class="category-title">${config.label}</h2>
                     </div>
-                    <div class="category-grid">
-                        ${catProjects.map(p => `
-                            <a href="project.html?id=${p.id}" class="project-detail-card project-detail-link">
-                                <h3>${escapeHtmlContent(p.title)}</h3>
-                                <p>${escapeHtmlContent(p.shortDescription)}</p>
-                                ${p.impact ? '<span class="project-impact">' + escapeHtmlContent(p.impact) + '</span>' : ''}
-                                ${p.date ? '<span class="project-date">' + escapeHtmlContent(p.date) + '</span>' : ''}
-                                <span class="project-view-link">View Details &rarr;</span>
-                            </a>
-                        `).join('')}
+                    <div class="category-carousel-wrap">
+                        <button class="carousel-btn prev" data-carousel="${carouselId}" aria-label="Scroll left">&#8249;</button>
+                        <div class="category-grid" id="${carouselId}">
+                            ${catProjects.map(p => `
+                                <a href="project.html?id=${p.id}" class="project-detail-card project-detail-link">
+                                    <div class="project-card-image">
+                                        ${p.imageUrl ? '<img src="' + p.imageUrl + '" alt="' + escapeHtmlAttr(p.title) + '" loading="lazy">' : '<svg class="card-icon-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'}
+                                    </div>
+                                    <div class="project-card-body">
+                                        <h3>${escapeHtmlContent(p.title)}</h3>
+                                        <p>${escapeHtmlContent(p.shortDescription)}</p>
+                                        <div class="project-card-footer">
+                                            <span class="project-impact">${p.impact ? escapeHtmlContent(p.impact) : ''}</span>
+                                            <span class="project-view-link">View &rarr;</span>
+                                        </div>
+                                    </div>
+                                </a>
+                            `).join('')}
+                        </div>
+                        <button class="carousel-btn next" data-carousel="${carouselId}" aria-label="Scroll right">&#8250;</button>
                     </div>
                 </div>
             </div>
@@ -337,12 +348,47 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     projectsContainer.innerHTML = html;
 
+    // Init carousel navigation
+    initCarousels();
+
     // Re-init fade-up observer for dynamically added elements
     initFadeUpObserver();
 
     // Init filter buttons for dynamic content
     initDynamicFilters();
 });
+
+function initCarousels() {
+    document.querySelectorAll('.carousel-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const carouselId = this.dataset.carousel;
+            const grid = document.getElementById(carouselId);
+            if (!grid) return;
+            const scrollAmount = 340;
+            if (this.classList.contains('prev')) {
+                grid.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            } else {
+                grid.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            }
+        });
+    });
+
+    // Update button states on scroll
+    document.querySelectorAll('.category-grid').forEach(grid => {
+        const wrap = grid.closest('.category-carousel-wrap');
+        if (!wrap) return;
+        const prevBtn = wrap.querySelector('.carousel-btn.prev');
+        const nextBtn = wrap.querySelector('.carousel-btn.next');
+
+        function updateBtns() {
+            if (prevBtn) prevBtn.disabled = grid.scrollLeft <= 10;
+            if (nextBtn) nextBtn.disabled = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 10;
+        }
+
+        grid.addEventListener('scroll', updateBtns);
+        updateBtns();
+    });
+}
 
 function initDynamicFilters() {
     const filterBtns = document.querySelectorAll('.filter-btn');
@@ -398,9 +444,16 @@ function initFadeUpObserver() {
                     }
                 });
             },
-            { threshold: 0.05, rootMargin: '0px 0px 0px 0px' }
+            { threshold: 0.01, rootMargin: '0px 0px 200px 0px' }
         );
         fadeElements.forEach(el => observer.observe(el));
+
+        // Fallback: if elements haven't become visible after 2s, force them
+        setTimeout(() => {
+            document.querySelectorAll('.fade-up:not(.visible)').forEach(el => {
+                el.classList.add('visible');
+            });
+        }, 2000);
     } else {
         fadeElements.forEach(el => el.classList.add('visible'));
     }
