@@ -15,6 +15,17 @@
   "author": "Global Shapers Faisalabad Hub",
   "license": "MIT",
   "dependencies": {
-    "@supabase/supabase-js": "^2.90.1"
-  }
+    "@supabase/supabase-js": "^2.90.1",
+    "@vercel/blob": "^2.2.0"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/talalmuzaffar/global-shapers-islamabad-website.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/talalmuzaffar/global-shapers-islamabad-website/issues"
+  },
+  "homepage": "https://github.com/talalmuzaffar/global-shapers-islamabad-website#readme"
 }
