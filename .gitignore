@@ -30,3 +30,10 @@ npm-debug.log*
 *.temp
 
 .env*.local
+
+# Cloudflare local dev secrets
+.dev.vars
+.wrangler
+
+# Cloudflare API token (local only)
+.cf_token

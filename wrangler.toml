@@ -1,0 +1,21 @@
+name = "global-shapers-website"
+compatibility_date = "2025-05-01"
+pages_build_output_dir = "."
+
+# D1 database binding.
+# For local dev the id below is a stable placeholder so `d1 execute --local`
+# and `wrangler pages dev` share the same local SQLite file.
+# Before deploying to Cloudflare, run:
+#   npx wrangler d1 create global-shapers-db
+# and replace database_id with the real id it returns.
+[[d1_databases]]
+binding = "DB"
+database_name = "global-shapers-db"
+database_id = "b3dd1908-220e-4045-9d42-330e4a9f6c6b"
+
+# R2 bucket for uploaded images (project pictures, member photos).
+# Before deploying, run:
+#   npx wrangler r2 bucket create global-shapers-media
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "global-shapers-media"

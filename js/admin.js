@@ -1,11 +1,6 @@
 // Admin Panel JavaScript - CMS for Projects, Members & Events
-// Works without backend API - uses client-side password for access control
-
-const ADMIN_AUTH_KEY = 'admin_authenticated';
-
-// Client-side password hash (SHA-256 of "globalshaper2025")
-// To change password: update the hash and the comment above
-const PASSWORD_HASH = '8b2c86e3c1a6e4f7dd2da2e5c45f4cc3c1d5b5f7e0a2b4d6f8a0c2e4f6a8b0d2';
+// Auth is server-side: /api/auth/login sets an HttpOnly session cookie that
+// the browser sends automatically on every API call.
 
 let isAuthenticated = false;
 
@@ -19,18 +14,21 @@ let currentEditMemberId = null;
 let currentEditEventId = null;
 
 // ==================== SYNC TO SERVER ====================
-// Saves data to Vercel Blob via API so changes go live immediately
+// Persists data to the D1-backed API. The session cookie is sent
+// automatically (same-origin); a 401 means the session expired.
 
 async function syncToServer(type, data) {
     try {
         const response = await fetch(`/api/data?type=${type}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-admin-password': 'globalshaper2025'
-            },
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
             body: JSON.stringify(data)
         });
+        if (response.status === 401) {
+            handleAuthExpired();
+            return false;
+        }
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.error || 'Sync failed');
@@ -38,29 +36,267 @@ async function syncToServer(type, data) {
         return true;
     } catch (error) {
         console.error(`Failed to sync ${type} to server:`, error);
-        showToast(`Warning: Changes saved locally but failed to sync to server. Use "Download JSON" as backup.`, 'error');
+        showToast(`Failed to save changes to the server. Please try again.`, 'error');
         return false;
     }
 }
 
-// ==================== SIMPLE HASH FUNCTION ====================
-// For client-side password check (not for security-critical purposes)
+// ==================== IMAGE UPLOAD ====================
+// Uploads a File to R2 via /api/upload and returns the servable URL.
 
-async function hashPassword(password) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+async function uploadImage(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const response = await fetch('/api/upload', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd
+    });
+    if (response.status === 401) {
+        handleAuthExpired();
+        throw new Error('Session expired');
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Upload failed');
+    return data.url;
+}
+
+// Number of image uploads currently in flight. Save handlers check this so
+// a record can't be saved with an empty image URL while its upload runs.
+let uploadsInProgress = 0;
+
+// Renders a single thumbnail with an ✕ remove button into `preview`.
+// The raw URL is kept only in the hidden `urlInput`, never shown as text.
+function renderSingleThumb(preview, urlInput) {
+    const url = urlInput.value.trim();
+    if (!preview) return;
+    if (!url) { preview.innerHTML = ''; return; }
+    preview.innerHTML =
+        '<div class="thumb">' +
+        `<img src="${escapeHtml(url)}" alt="thumbnail">` +
+        '<button type="button" class="thumb-remove" title="Remove image">✕</button>' +
+        '</div>';
+    preview.querySelector('.thumb-remove').addEventListener('click', function () {
+        urlInput.value = '';
+        preview.innerHTML = '';
+    });
+}
+
+// Wires a single-image <input type=file>: uploads to R2, stores the URL in a
+// hidden input, and shows a thumbnail + remove button (no visible path).
+function wireImageUpload(fileInputId, urlInputId, previewId) {
+    const fileInput = document.getElementById(fileInputId);
+    const urlInput = document.getElementById(urlInputId);
+    const preview = document.getElementById(previewId);
+    if (!fileInput || !urlInput) return;
+
+    fileInput.addEventListener('change', async function () {
+        const file = this.files && this.files[0];
+        if (!file) return;
+        if (preview) {
+            preview.innerHTML =
+                '<span class="upload-status uploading">' +
+                '<span class="upload-spinner"></span>Uploading “' +
+                escapeHtml(file.name) + '”…</span>';
+        }
+        fileInput.disabled = true;
+        uploadsInProgress++;
+        try {
+            const url = await uploadImage(file);
+            urlInput.value = url;
+            renderSingleThumb(preview, urlInput);
+            showToast('Image uploaded successfully', 'success');
+        } catch (err) {
+            if (preview) {
+                preview.innerHTML =
+                    '<span class="upload-status failed">✕ ' +
+                    escapeHtml(err.message || 'Upload failed') + '</span>';
+            }
+            showToast(err.message || 'Upload failed', 'error');
+        } finally {
+            uploadsInProgress--;
+            fileInput.disabled = false;
+            fileInput.value = '';
+        }
+    });
+}
+
+// In-memory gallery URLs for the project form currently open.
+let galleryUrls = [];
+
+// Re-renders the gallery thumbnail grid from galleryUrls (each with ✕ remove).
+// Only touches the grid element, never the status line, so progress text and
+// thumbnails can't clobber each other.
+function renderGalleryPreview() {
+    const grid = document.getElementById('project-gallery-grid');
+    if (!grid) return;
+    grid.innerHTML = galleryUrls.map((url, i) =>
+        '<div class="thumb">' +
+        `<img src="${escapeHtml(url)}" alt="gallery image ${i + 1}">` +
+        `<button type="button" class="thumb-remove" data-i="${i}" title="Remove">✕</button>` +
+        '</div>'
+    ).join('');
+    grid.querySelectorAll('.thumb-remove').forEach(btn => {
+        btn.addEventListener('click', function () {
+            galleryUrls.splice(parseInt(this.dataset.i, 10), 1);
+            renderGalleryPreview();
+        });
+    });
+}
+
+function setGalleryStatus(html) {
+    const status = document.getElementById('project-gallery-status');
+    if (status) status.innerHTML = html || '';
+}
+
+// Wires the multi-image gallery file input: uploads each selected file to R2,
+// appends it to galleryUrls, and shows each thumbnail as soon as it's ready.
+function wireGalleryUpload() {
+    const fileInput = document.getElementById('project-gallery-file');
+    const preview = document.getElementById('project-gallery-preview');
+    if (!fileInput || !preview) return;
+
+    // Build a stable structure: a status line + a grid, so re-rendering the
+    // grid never wipes the progress text (the original bug).
+    preview.innerHTML =
+        '<div id="project-gallery-status"></div>' +
+        '<div id="project-gallery-grid" class="gallery-grid"></div>';
+
+    fileInput.addEventListener('change', async function () {
+        const files = Array.from(this.files || []);
+        if (!files.length) return;
+        fileInput.disabled = true;
+        uploadsInProgress++;
+        let done = 0;
+        const total = files.length;
+        try {
+            for (const file of files) {
+                setGalleryStatus(
+                    '<span class="upload-status uploading">' +
+                    '<span class="upload-spinner"></span>Uploading ' +
+                    (done + 1) + ' of ' + total + '…</span>'
+                );
+                const url = await uploadImage(file);
+                galleryUrls.push(url);
+                done++;
+                renderGalleryPreview();
+            }
+            setGalleryStatus(
+                '<span class="upload-status done">✓ ' + done +
+                ' image(s) added to gallery</span>'
+            );
+            showToast(done + ' gallery image(s) uploaded', 'success');
+        } catch (err) {
+            setGalleryStatus(
+                '<span class="upload-status failed">✕ ' +
+                escapeHtml(err.message || 'Gallery upload failed') +
+                ' (' + done + ' of ' + total + ' uploaded)</span>'
+            );
+            showToast(err.message || 'Gallery upload failed', 'error');
+            renderGalleryPreview();
+        } finally {
+            uploadsInProgress--;
+            fileInput.disabled = false;
+            fileInput.value = '';
+        }
+    });
+}
+
+// Returns true (and warns) if an image upload is still running.
+function blockedByUpload() {
+    if (uploadsInProgress > 0) {
+        showToast('Please wait — image still uploading…', 'error');
+        return true;
+    }
+    return false;
+}
+
+// ==================== CONFIRM MODAL ====================
+// Promise-based replacement for window.confirm(). Resolves true/false.
+function confirmDialog(message, opts) {
+    opts = opts || {};
+    return new Promise(resolve => {
+        const modal = document.getElementById('confirm-modal');
+        const titleEl = document.getElementById('confirm-modal-title');
+        const msgEl = document.getElementById('confirm-modal-message');
+        const okBtn = document.getElementById('confirm-modal-ok');
+        const cancelBtn = document.getElementById('confirm-modal-cancel');
+        if (!modal) { resolve(window.confirm(message)); return; }
+
+        titleEl.textContent = opts.title || 'Are you sure?';
+        msgEl.textContent = message;
+        okBtn.textContent = opts.okText || 'Delete';
+        modal.style.display = 'flex';
+
+        function cleanup(result) {
+            modal.style.display = 'none';
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+            document.removeEventListener('keydown', onKey);
+            resolve(result);
+        }
+        function onOk() { cleanup(true); }
+        function onCancel() { cleanup(false); }
+        function onBackdrop(e) { if (e.target === modal) cleanup(false); }
+        function onKey(e) { if (e.key === 'Escape') cleanup(false); }
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        okBtn.focus();
+    });
+}
+
+// ==================== FORM VALIDATION ====================
+// Clears any previous error styling/messages within a form.
+function clearFieldErrors(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    form.querySelectorAll('.field-error-msg').forEach(el => el.remove());
+    form.querySelectorAll('.field-invalid').forEach(el => el.classList.remove('field-invalid'));
+}
+
+// fields: [{ id, label }]. Marks empty ones, shows inline messages,
+// focuses the first invalid field. Returns true if all are filled.
+function validateRequired(formId, fields) {
+    clearFieldErrors(formId);
+    let firstInvalid = null;
+    fields.forEach(f => {
+        const el = document.getElementById(f.id);
+        if (!el) return;
+        if (!el.value || !el.value.trim()) {
+            el.classList.add('field-invalid');
+            const msg = document.createElement('div');
+            msg.className = 'field-error-msg';
+            msg.textContent = f.label + ' is required';
+            el.insertAdjacentElement('afterend', msg);
+            if (!firstInvalid) firstInvalid = el;
+        }
+    });
+    if (firstInvalid) {
+        firstInvalid.focus();
+        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showToast('Please fill in the required fields', 'error');
+        return false;
+    }
+    return true;
 }
 
 // ==================== INITIALIZATION ====================
 
-document.addEventListener('DOMContentLoaded', function () {
-    // Check if already logged in this session
-    const storedAuth = sessionStorage.getItem(ADMIN_AUTH_KEY);
+document.addEventListener('DOMContentLoaded', async function () {
+    // Ask the server whether we have a valid session cookie.
+    let authed = false;
+    try {
+        const r = await fetch('/api/auth/session', { credentials: 'same-origin' });
+        authed = (await r.json()).authed === true;
+    } catch (e) {
+        authed = false;
+    }
 
-    if (storedAuth === 'true') {
+    if (authed) {
         isAuthenticated = true;
         showAdminPanel();
         initAdminPanel();
@@ -68,30 +304,36 @@ document.addEventListener('DOMContentLoaded', function () {
         showLoginScreen();
     }
 
-    // Login form
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', async function (e) {
             e.preventDefault();
             const password = document.getElementById('password').value;
-
-            const hash = await hashPassword(password);
-
-            // Accept the hardcoded password OR the hash match
-            if (password === 'globalshaper2025' || hash === PASSWORD_HASH) {
-                isAuthenticated = true;
-                sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
-                showAdminPanel();
-                initAdminPanel();
-            } else {
-                showLoginError('Invalid password. Please try again.');
+            try {
+                const r = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ password })
+                });
+                if (r.ok) {
+                    isAuthenticated = true;
+                    showAdminPanel();
+                    initAdminPanel();
+                } else {
+                    showLoginError('Invalid password. Please try again.');
+                }
+            } catch (err) {
+                showLoginError('Login failed. Please try again.');
             }
         });
     }
 
-    // Logout
-    document.getElementById('logout-btn')?.addEventListener('click', function () {
-        clearSession();
+    document.getElementById('logout-btn')?.addEventListener('click', async function () {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+        } catch (e) { /* ignore */ }
+        isAuthenticated = false;
         showLoginScreen();
     });
 });
@@ -104,9 +346,10 @@ function showLoginError(msg) {
 
 // ==================== SESSION MANAGEMENT ====================
 
-function clearSession() {
-    sessionStorage.removeItem(ADMIN_AUTH_KEY);
+function handleAuthExpired() {
     isAuthenticated = false;
+    showToast('Your session expired. Please log in again.', 'error');
+    showLoginScreen();
 }
 
 function showLoginScreen() {
@@ -170,9 +413,10 @@ async function loadSubmissions() {
     try {
         const response = await fetch('/api/get-submissions', {
             method: 'GET',
-            headers: { 'x-admin-password': 'globalshaper2025' }
+            credentials: 'same-origin'
         });
 
+        if (response.status === 401) { handleAuthExpired(); return; }
         if (!response.ok) throw new Error('Failed to load');
 
         const data = await response.json();
@@ -190,7 +434,7 @@ async function loadSubmissions() {
         // Show a friendly message since API may not be available locally
         const emptyEl = document.getElementById('empty-state');
         if (emptyEl) {
-            emptyEl.innerHTML = '<p>Submissions API is not available in this environment.</p><p style="font-size:13px;color:#999;margin-top:8px;">Contact form submissions are available when deployed to Vercel with the API backend configured.</p>';
+            emptyEl.innerHTML = '<p>Could not load submissions.</p><p style="font-size:13px;color:#999;margin-top:8px;">Check your connection and try Refresh.</p>';
             emptyEl.style.display = 'block';
         }
     }
@@ -208,12 +452,12 @@ function displaySubmissions(submissions) {
             year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
         return `<tr>
-            <td>${sub.id}</td>
-            <td>${formattedDate}</td>
-            <td>${escapeHtml(sub.name)}</td>
-            <td><a href="mailto:${escapeHtml(sub.email)}">${escapeHtml(sub.email)}</a></td>
-            <td><span class="meta-badge category">${escapeHtml(sub.type)}</span></td>
-            <td>${escapeHtml(sub.message)}</td>
+            <td data-label="ID">${sub.id}</td>
+            <td data-label="Timestamp">${formattedDate}</td>
+            <td data-label="Name">${escapeHtml(sub.name)}</td>
+            <td data-label="Email"><a href="mailto:${escapeHtml(sub.email)}">${escapeHtml(sub.email)}</a></td>
+            <td data-label="Type"><span class="meta-badge category">${escapeHtml(sub.type)}</span></td>
+            <td data-label="Message">${escapeHtml(sub.message)}</td>
         </tr>`;
     }).join('');
 }
@@ -222,8 +466,9 @@ async function exportToCSV() {
     try {
         const response = await fetch('/api/export-csv', {
             method: 'GET',
-            headers: { 'x-admin-password': 'globalshaper2025' }
+            credentials: 'same-origin'
         });
+        if (response.status === 401) { handleAuthExpired(); return; }
         if (!response.ok) throw new Error('Failed');
         const csv = await response.text();
         downloadFile(csv, `contact-submissions-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
@@ -246,6 +491,9 @@ function initProjects() {
         e.preventDefault();
         saveProject();
     });
+
+    wireImageUpload('project-image-file', 'project-image-url', 'project-image-preview');
+    wireGalleryUpload();
 
     // Markdown toolbar buttons
     document.querySelectorAll('.markdown-toolbar .md-btn[data-md]').forEach(btn => {
@@ -289,11 +537,13 @@ function initProjects() {
         } else if (deleteBtn) {
             e.preventDefault();
             e.stopPropagation();
-            if (!confirm('Are you sure you want to delete this project?')) return;
-            projectsData = projectsData.filter(p => p.id !== id);
-            renderProjectsList();
-            showToast('Project deleted', 'info');
-            syncToServer('projects', projectsData);
+            confirmDialog('Are you sure you want to delete this project?', { title: 'Delete project' }).then(ok => {
+                if (!ok) return;
+                projectsData = projectsData.filter(p => p.id !== id);
+                renderProjectsList();
+                showToast('Project deleted', 'info');
+                syncToServer('projects', projectsData);
+            });
         }
     });
 }
@@ -379,23 +629,24 @@ function htmlToMarkdown(html) {
 
 async function loadProjectsData() {
     try {
-        // Try API (Blob) first, fall back to static JSON
-        let response = await fetch('/api/data?type=projects');
-        let data = await response.json();
-        if (!Array.isArray(data) || data.length === 0) {
-            response = await fetch('/data/projects.json');
-            data = await response.json();
+        // API (Blob) is the source of truth
+        const response = await fetch('/api/data?type=projects');
+        if (response.ok) {
+            const data = await response.json();
+            projectsData = Array.isArray(data) ? data : [];
+            renderProjectsList();
+            return;
         }
-        projectsData = data;
+    } catch (e) {
+        console.log('API unavailable, falling back to static JSON:', e);
+    }
+    // Fallback to static JSON only if API fails entirely
+    try {
+        const response = await fetch('/data/projects.json');
+        projectsData = await response.json();
         renderProjectsList();
     } catch {
-        try {
-            const response = await fetch('/data/projects.json');
-            projectsData = await response.json();
-            renderProjectsList();
-        } catch {
-            showToast('Failed to load projects data', 'error');
-        }
+        showToast('Failed to load projects data', 'error');
     }
 }
 
@@ -452,7 +703,6 @@ function showProjectForm(project = null) {
     document.getElementById('project-short-desc').value = '';
     document.getElementById('project-full-desc').value = '';
     document.getElementById('project-image-url').value = '';
-    document.getElementById('project-impact').value = '';
     document.getElementById('project-date').value = '';
     document.getElementById('project-flagship').checked = false;
     document.getElementById('project-links').value = '';
@@ -473,13 +723,25 @@ function showProjectForm(project = null) {
         // Convert HTML to Markdown for editing
         document.getElementById('project-full-desc').value = htmlToMarkdown(project.fullDescription || '');
         document.getElementById('project-image-url').value = project.imageUrl || '';
-        document.getElementById('project-impact').value = project.impact || '';
         document.getElementById('project-date').value = project.date || '';
         document.getElementById('project-flagship').checked = !!project.isFlagship;
         document.getElementById('project-links').value = (project.links || []).join('\n');
+        galleryUrls = Array.isArray(project.gallery) ? project.gallery.slice() : [];
+    } else {
+        galleryUrls = [];
     }
 
+    refreshUploadPreview('project-image-url', 'project-image-preview');
+    renderGalleryPreview();
     container.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Renders/clears a thumbnail under an image field based on its current value.
+function refreshUploadPreview(urlInputId, previewId) {
+    const urlInput = document.getElementById(urlInputId);
+    const preview = document.getElementById(previewId);
+    if (!preview || !urlInput) return;
+    renderSingleThumb(preview, urlInput);
 }
 
 function hideProjectForm() {
@@ -490,7 +752,6 @@ function hideProjectForm() {
     document.getElementById('project-short-desc').value = '';
     document.getElementById('project-full-desc').value = '';
     document.getElementById('project-image-url').value = '';
-    document.getElementById('project-impact').value = '';
     document.getElementById('project-date').value = '';
     document.getElementById('project-flagship').checked = false;
     document.getElementById('project-links').value = '';
@@ -498,6 +759,13 @@ function hideProjectForm() {
 }
 
 function saveProject() {
+    if (blockedByUpload()) return;
+    if (!validateRequired('project-form', [
+        { id: 'project-title', label: 'Project Title' },
+        { id: 'project-category', label: 'Category' },
+        { id: 'project-short-desc', label: 'Short Description' },
+        { id: 'project-full-desc', label: 'Full Description' }
+    ])) return;
     const editId = document.getElementById('project-edit-id').value;
     const titleVal = document.getElementById('project-title').value.trim();
     const linksText = document.getElementById('project-links').value.trim();
@@ -514,10 +782,10 @@ function saveProject() {
         shortDescription: document.getElementById('project-short-desc').value.trim(),
         fullDescription: htmlContent,
         imageUrl: document.getElementById('project-image-url').value.trim(),
-        impact: document.getElementById('project-impact').value.trim(),
         date: document.getElementById('project-date').value.trim(),
         isFlagship: document.getElementById('project-flagship').checked,
-        links: links
+        links: links,
+        gallery: galleryUrls.slice()
     };
 
     if (editId) {
@@ -560,10 +828,13 @@ function initMembers() {
         saveMember();
     });
 
-    // Event delegation for edit/delete buttons
+    wireImageUpload('member-photo-file', 'member-photo-url', 'member-photo-preview');
+
+    // Event delegation for edit/delete/alumni-toggle buttons
     document.getElementById('members-list')?.addEventListener('click', function (e) {
         const editBtn = e.target.closest('.icon-btn.edit');
         const deleteBtn = e.target.closest('.icon-btn.delete');
+        const toggleBtn = e.target.closest('.toggle-type-btn');
         const card = e.target.closest('.item-card');
         if (!card) return;
         const id = card.dataset.id;
@@ -572,14 +843,25 @@ function initMembers() {
             e.stopPropagation();
             const member = membersData.find(m => m.id === id);
             if (member) showMemberForm(member);
+        } else if (toggleBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const member = membersData.find(m => m.id === id);
+            if (!member) return;
+            member.type = member.type === 'alumni' ? 'active' : 'alumni';
+            renderMembersList();
+            showToast(`${member.name} marked as ${member.type === 'alumni' ? 'Alumni' : 'Active'}`, 'success');
+            syncToServer('members', membersData);
         } else if (deleteBtn) {
             e.preventDefault();
             e.stopPropagation();
-            if (!confirm('Are you sure you want to delete this member?')) return;
-            membersData = membersData.filter(m => m.id !== id);
-            renderMembersList();
-            showToast('Member deleted', 'info');
-            syncToServer('members', membersData);
+            confirmDialog('Are you sure you want to delete this member?', { title: 'Delete member' }).then(ok => {
+                if (!ok) return;
+                membersData = membersData.filter(m => m.id !== id);
+                renderMembersList();
+                showToast('Member deleted', 'info');
+                syncToServer('members', membersData);
+            });
         }
     });
 
@@ -596,22 +878,22 @@ function initMembers() {
 
 async function loadMembersData() {
     try {
-        let response = await fetch('/api/data?type=members');
-        let data = await response.json();
-        if (!Array.isArray(data) || data.length === 0) {
-            response = await fetch('/data/members.json');
-            data = await response.json();
+        const response = await fetch('/api/data?type=members');
+        if (response.ok) {
+            const data = await response.json();
+            membersData = Array.isArray(data) ? data : [];
+            renderMembersList();
+            return;
         }
-        membersData = data;
+    } catch (e) {
+        console.log('API unavailable, falling back to static JSON:', e);
+    }
+    try {
+        const response = await fetch('/data/members.json');
+        membersData = await response.json();
         renderMembersList();
     } catch {
-        try {
-            const response = await fetch('/data/members.json');
-            membersData = await response.json();
-            renderMembersList();
-        } catch {
-            showToast('Failed to load members data', 'error');
-        }
+        showToast('Failed to load members data', 'error');
     }
 }
 
@@ -643,6 +925,9 @@ function renderMembersList() {
                 </div>
             </div>
             <div class="item-card-actions">
+                <button class="admin-btn toggle-type-btn" title="Switch between Active and Alumni" style="padding:6px 12px;font-size:13px;">
+                    ${member.type === 'alumni' ? 'Set Active' : 'Set Alumni'}
+                </button>
                 <button class="icon-btn edit" title="Edit">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
@@ -689,6 +974,7 @@ function showMemberForm(member = null) {
         document.getElementById('member-twitter').value = member.socials?.twitter || '';
     }
 
+    refreshUploadPreview('member-photo-url', 'member-photo-preview');
     container.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -708,6 +994,11 @@ function hideMemberForm() {
 }
 
 function saveMember() {
+    if (blockedByUpload()) return;
+    if (!validateRequired('member-form', [
+        { id: 'member-name', label: 'Full Name' },
+        { id: 'member-type', label: 'Type' }
+    ])) return;
     const editId = document.getElementById('member-edit-id').value;
     const nameVal = document.getElementById('member-name').value.trim();
 
@@ -781,34 +1072,37 @@ function initEvents() {
         } else if (deleteBtn) {
             e.preventDefault();
             e.stopPropagation();
-            if (!confirm('Are you sure you want to delete this event?')) return;
-            eventsData = eventsData.filter(ev => ev.id !== id);
-            renderEventsList();
-            showToast('Event deleted', 'info');
-            syncToServer('events', eventsData);
+            confirmDialog('Are you sure you want to delete this event?', { title: 'Delete event' }).then(ok => {
+                if (!ok) return;
+                eventsData = eventsData.filter(ev => ev.id !== id);
+                renderEventsList();
+                showToast('Event deleted', 'info');
+                syncToServer('events', eventsData);
+            });
         }
     });
 }
 
 async function loadEventsData() {
     try {
-        let response = await fetch('/api/data?type=events');
-        let data = await response.json();
-        if (!Array.isArray(data) || data.length === 0) {
-            response = await fetch('/data/events.json');
-            data = await response.json();
+        const response = await fetch('/api/data?type=events');
+        if (response.ok) {
+            const data = await response.json();
+            eventsData = Array.isArray(data) ? data : [];
+            renderEventsList();
+            return;
         }
-        eventsData = data;
+    } catch (e) {
+        console.log('API unavailable, falling back to static JSON:', e);
+    }
+    try {
+        const response = await fetch('/data/events.json');
+        eventsData = await response.json();
         renderEventsList();
     } catch {
-        try {
-            const response = await fetch('/data/events.json');
-            eventsData = await response.json();
-            renderEventsList();
-        } catch {
-            eventsData = [];
-            renderEventsList();
-        }
+        eventsData = [];
+        renderEventsList();
+    }
 }
 
 function renderEventsList() {
@@ -887,6 +1181,10 @@ function hideEventForm() {
 }
 
 function saveEvent() {
+    if (!validateRequired('event-form', [
+        { id: 'event-title', label: 'Event Title' },
+        { id: 'event-description', label: 'Description' }
+    ])) return;
     const editId = document.getElementById('event-edit-id').value;
     const titleVal = document.getElementById('event-title').value.trim();
 

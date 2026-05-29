@@ -201,28 +201,31 @@ function showFormMessage(message, type) {
 // ==================== DATA LOADING UTILITIES ====================
 
 async function loadProjects() {
+    // Projects are managed entirely through the admin CMS (D1). There is
+    // intentionally NO fallback to /data/projects.json — that file holds the
+    // old removed projects and must never resurface on the public site.
     try {
-        // Try API (Blob storage) first for live data
         const apiResp = await fetch('/api/data?type=projects');
-        const apiData = await apiResp.json();
-        if (Array.isArray(apiData) && apiData.length > 0) return apiData;
-    } catch {}
-    try {
-        // Fallback to static JSON
-        const response = await fetch('/data/projects.json');
-        return await response.json();
+        if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (Array.isArray(apiData)) return apiData;
+        }
     } catch (e) {
         console.error('Failed to load projects:', e);
-        return [];
     }
+    return [];
 }
 
 async function loadMembers() {
     try {
         const apiResp = await fetch('/api/data?type=members');
-        const apiData = await apiResp.json();
-        if (Array.isArray(apiData) && apiData.length > 0) return apiData;
-    } catch {}
+        if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (Array.isArray(apiData)) return apiData;
+        }
+    } catch (e) {
+        console.log('API unavailable, falling back to static JSON');
+    }
     try {
         const response = await fetch('/data/members.json');
         return await response.json();
@@ -235,9 +238,13 @@ async function loadMembers() {
 async function loadEvents() {
     try {
         const apiResp = await fetch('/api/data?type=events');
-        const apiData = await apiResp.json();
-        if (Array.isArray(apiData) && apiData.length > 0) return apiData;
-    } catch {}
+        if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (Array.isArray(apiData)) return apiData;
+        }
+    } catch (e) {
+        console.log('API unavailable, falling back to static JSON');
+    }
     try {
         const response = await fetch('/data/events.json');
         return await response.json();
@@ -284,7 +291,21 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (!projectsContainer) return;
 
     const projects = await loadProjects();
-    if (!projects.length) return;
+    if (!projects.length) {
+        // No projects yet — hide the flagship heading and show a message so
+        // the page doesn't look broken.
+        const fs = document.getElementById('flagship-section');
+        if (fs) fs.style.display = 'none';
+        projectsContainer.innerHTML = `
+        <section class="section section-white" style="padding: 40px 0 80px;">
+            <div class="container" style="text-align: center;">
+                <p class="section-subtitle" style="max-width: 520px; margin: 0 auto;">
+                    Our projects are being updated. Please check back soon.
+                </p>
+            </div>
+        </section>`;
+        return;
+    }
 
     const categoryConfig = {
         covid: { label: 'COVID-19 Response', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M12 6v6l4 2"/></svg>', sectionClass: 'section-gray' },
@@ -293,9 +314,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         equity: { label: 'Equity & Inclusion', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', sectionClass: 'section-white' }
     };
 
-    // Render flagship projects
+    // Render flagship projects (hide the whole section if there are none, so
+    // the page doesn't show an orphaned "Flagship Projects" heading).
     const flagships = projects.filter(p => p.isFlagship);
-    if (flagships.length > 0) {
+    const flagshipWrapper = document.getElementById('flagship-section');
+    if (flagships.length === 0) {
+        if (flagshipWrapper) flagshipWrapper.style.display = 'none';
+    } else {
         const flagshipSection = document.getElementById('flagship-projects');
         if (flagshipSection) {
             flagshipSection.innerHTML = flagships.map(p => `
@@ -349,7 +374,6 @@ document.addEventListener('DOMContentLoaded', async function () {
                                         <h3>${escapeHtmlContent(p.title)}</h3>
                                         <p>${escapeHtmlContent(p.shortDescription)}</p>
                                         <div class="project-card-footer">
-                                            <span class="project-impact">${p.impact ? escapeHtmlContent(p.impact) : ''}</span>
                                             <span class="project-view-link">View &rarr;</span>
                                         </div>
                                     </div>
@@ -519,16 +543,19 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Build detail content
     let detailHtml = `
         <div class="container">
+            ${Array.isArray(project.gallery) && project.gallery.length > 0 ? `
+            <div class="project-gallery">
+                <div class="project-gallery-grid">
+                    ${project.gallery.map(src => '<a href="' + src + '" target="_blank" rel="noopener" class="project-gallery-item"><img src="' + src + '" alt="' + escapeHtmlAttr(project.title) + '" loading="lazy"></a>').join('')}
+                </div>
+            </div>` : ''}
             <div class="project-detail-card">
                 <div class="project-detail-header">
                     <div class="project-detail-content">
-                        <h3>${escapeHtmlContent(project.title)}</h3>
                         ${project.date ? '<p style="font-weight:600;color:var(--primary-blue);font-size:1.1rem;margin-bottom:20px;">' + escapeHtmlContent(project.date) + '</p>' : ''}
                         <div class="project-full-description">${project.fullDescription}</div>
-                        ${project.impact ? '<div style="margin-top:30px;padding:20px;background:#f5f7fa;border-radius:8px;"><h4 style="color:var(--primary-blue);margin-bottom:10px;font-family:var(--font-display);">Impact</h4><p style="font-size:18px;font-weight:600;color:var(--text-dark);">' + escapeHtmlContent(project.impact) + '</p></div>' : ''}
                         ${project.links && project.links.length > 0 ? '<div style="margin-top:20px;"><h4 style="color:var(--primary-blue);margin-bottom:10px;font-family:var(--font-display);">Resources</h4>' + project.links.map(l => '<a href="' + l + '" target="_blank" rel="noopener" style="display:block;color:var(--primary-blue);margin-bottom:6px;word-break:break-all;">' + l + '</a>').join('') + '</div>' : ''}
                     </div>
-                    ${project.imageUrl ? '<div class="project-detail-image"><img src="' + project.imageUrl + '" alt="' + escapeHtmlAttr(project.title) + '" loading="lazy"></div>' : ''}
                 </div>
             </div>
             <div style="text-align:center;margin-top:40px;">

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Global Shapers Faisalabad Hub</title>
     <meta name="description" content="Admin panel for managing content">
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="/css/styles.css?v=5">
+    <link rel="stylesheet" href="/css/admin.css?v=7">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -184,16 +184,18 @@ Describe the project here. Use **bold** for emphasis.
                                     <div id="md-preview" class="md-preview" style="display: none;"></div>
                                     <small class="form-help">Use Markdown formatting: **bold**, *italic*, ## Heading, - bullet list, [link text](url)</small>
                                 </div>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="project-image-url">Image URL (public URL)</label>
-                                        <input type="url" id="project-image-url" placeholder="https://example.com/image.jpg">
-                                        <small class="form-help">Paste a publicly accessible image URL. Leave empty for no image.</small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="project-impact">Impact Metric</label>
-                                        <input type="text" id="project-impact" placeholder="e.g. 1,000 students trained">
-                                    </div>
+                                <div class="form-group">
+                                    <label for="project-image-file">Thumbnail Picture (project card image)</label>
+                                    <input type="file" id="project-image-file" accept="image/*">
+                                    <small class="form-help">Shown on the projects listing card only. The project page itself shows the gallery below. JPEG/PNG/WebP, max 10 MB.</small>
+                                    <input type="hidden" id="project-image-url">
+                                    <div id="project-image-preview" class="upload-preview"></div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="project-gallery-file">Project Gallery (multiple pictures)</label>
+                                    <input type="file" id="project-gallery-file" accept="image/*" multiple>
+                                    <small class="form-help">Extra photos shown as a gallery on the project page. Select one or more; each can be removed below.</small>
+                                    <div id="project-gallery-preview" class="gallery-preview"></div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
@@ -262,8 +264,11 @@ Describe the project here. Use **bold** for emphasis.
                                         <input type="text" id="member-role" placeholder="e.g. Curator, Impact Officer, Director Partnerships">
                                     </div>
                                     <div class="form-group">
-                                        <label for="member-photo-url">Photo URL (public URL)</label>
-                                        <input type="url" id="member-photo-url" placeholder="https://example.com/photo.jpg">
+                                        <label for="member-photo-file">Member Photo</label>
+                                        <input type="file" id="member-photo-file" accept="image/*">
+                                        <small class="form-help">Upload a JPEG/PNG/WebP, max 10 MB.</small>
+                                        <input type="hidden" id="member-photo-url">
+                                        <div id="member-photo-preview" class="upload-preview"></div>
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -375,6 +380,18 @@ Describe the project here. Use **bold** for emphasis.
         </div>
     </div>
 
-    <script src="/js/admin.js"></script>
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+            <h3 id="confirm-modal-title">Are you sure?</h3>
+            <p id="confirm-modal-message">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button type="button" id="confirm-modal-cancel" class="admin-btn">Cancel</button>
+                <button type="button" id="confirm-modal-ok" class="admin-btn danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/admin.js?v=9"></script>
 </body>
 </html>

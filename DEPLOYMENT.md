@@ -1,110 +1,131 @@
-# Deploying to Vercel
+# Deploying to Cloudflare Pages
 
-This guide will help you deploy the Global Shapers Faisalabad Hub website to Vercel.
+This site runs entirely on **Cloudflare Pages**: static HTML/CSS/JS plus
+serverless API functions in `functions/`, backed by **Cloudflare D1**
+(SQLite) for content and **Cloudflare R2** for uploaded images.
 
-## Option 1: Deploy via Vercel Dashboard (Easiest)
+## Architecture
 
-1. **Prepare your project:**
-   - Make sure all files are ready
-   - Ensure images are in the `images/` folder
-   - All HTML files are in the root directory
+| Piece            | Where                         |
+|------------------|-------------------------------|
+| Static site      | repo root (served as-is)      |
+| API              | `functions/api/*.js` (Pages Functions) |
+| Image serving    | `functions/img/[[path]].js`   |
+| Database         | Cloudflare D1 `global-shapers-db` |
+| Uploaded images  | Cloudflare R2 `global-shapers-media` |
+| Schema           | `schema.sql`                  |
+| Seed data        | `seed.sql` (members + events; **projects start empty**) |
 
-2. **Go to Vercel:**
-   - Visit [vercel.com](https://vercel.com)
-   - Sign up or log in
+### Authentication
 
-3. **Deploy:**
-   - Click "New Project"
-   - Import your Git repository OR
-   - Use "Deploy" and drag/drop your project folder
+Admin auth is server-side. `POST /api/auth/login` checks the password
+against the `ADMIN_PASSWORD` secret and, on success, sets an **HttpOnly,
+Secure, SameSite=Strict** cookie containing an HMAC-signed token (signed
+with `SESSION_SECRET`, 8-hour expiry). Every write endpoint verifies that
+cookie server-side — there is no client-side password and no fallback.
 
-## Option 2: Deploy via Vercel CLI
+### API endpoints
 
-1. **Install Vercel CLI:**
+Public:
+- `GET  /api/data?type=projects|members|events` — read content
+- `POST /api/submit-form` — contact form
+- `GET  /img/<key>` — serve an uploaded image from R2
+
+Admin (require valid session cookie):
+- `POST /api/auth/login` / `POST /api/auth/logout` / `GET /api/auth/session`
+- `POST /api/data?type=...` — replace a dataset
+- `POST /api/upload` — upload an image to R2 (multipart, field `file`)
+- `GET  /api/get-submissions`, `GET /api/export-csv`
+
+## One-time setup
+
+1. **Install deps & log in**
    ```bash
-   npm install -g vercel
+   npm install
+   npx wrangler login
    ```
 
-2. **Login to Vercel:**
+2. **Create the D1 database**
    ```bash
-   vercel login
+   npx wrangler d1 create global-shapers-db
    ```
+   Copy the printed `database_id` into `wrangler.toml` (replace
+   `local-global-shapers-db`).
 
-3. **Deploy from project directory:**
+3. **Create the R2 bucket**
    ```bash
-   cd "/Users/talalmuzaffar/Desktop/Global Shaper - Website"
-   vercel
+   npx wrangler r2 bucket create global-shapers-media
    ```
+   (The binding name `MEDIA` in `wrangler.toml` must stay as-is.)
 
-4. **Follow the prompts:**
-   - Set up and deploy: Yes
-   - Which scope: Your account
-   - Link to existing project: No
-   - Project name: global-shapers-faisalabad
-   - Directory: ./
-   - Override settings: No
-
-5. **Production deployment:**
+4. **Create the schema and seed data on the remote DB**
    ```bash
-   vercel --prod
+   npm run seed                 # regenerate seed.sql (members + events only)
+   npm run db:init:remote       # applies schema.sql + seed.sql to Cloudflare D1
    ```
+   Projects are intentionally **not** seeded — the admin creates them
+   through the admin panel, uploading pictures directly.
 
-## Option 3: Deploy via GitHub
-
-1. **Initialize Git (if not already):**
+5. **Set the admin secrets** (no fallbacks exist in code)
    ```bash
-   cd "/Users/talalmuzaffar/Desktop/Global Shaper - Website"
-   git init
-   git add .
-   git commit -m "Initial commit"
+   npx wrangler pages secret put ADMIN_PASSWORD
+   npx wrangler pages secret put SESSION_SECRET
    ```
+   - `ADMIN_PASSWORD` — the admin login password.
+   - `SESSION_SECRET` — a long random string used to sign session
+     cookies. Generate one with: `openssl rand -hex 32`.
+     Changing it later logs everyone out (invalidates existing cookies).
 
-2. **Create GitHub repository:**
-   - Go to GitHub and create a new repository
-   - Push your code:
-   ```bash
-   git remote add origin YOUR_GITHUB_REPO_URL
-   git branch -M main
-   git push -u origin main
-   ```
+## Deploy
 
-3. **Connect to Vercel:**
-   - Go to Vercel dashboard
-   - Click "New Project"
-   - Import your GitHub repository
-   - Vercel will auto-detect settings
-   - Click "Deploy"
+**Via Git (recommended):** Connect the GitHub repo in the Cloudflare
+dashboard → Pages → Create project. Build command: none. Build output
+directory: `/`. Every push to `main` auto-deploys.
 
-## Configuration Files Created
+**Via CLI:**
+```bash
+npm run deploy        # wrangler pages deploy .
+```
 
-- `vercel.json` - Vercel configuration for routing
-- `package.json` - Project metadata (optional for static sites)
-- `.vercelignore` - Files to exclude from deployment
+## Local development
 
-## Important Notes
+Local dev uses a local SQLite file and a local R2 directory — **no
+Cloudflare login required**.
 
-1. **Images:** Make sure all banner images exist:
-   - `images/banner-about.jpg`
-   - `images/banner-projects.jpg`
-   - `images/banner-team.jpg`
-   - `images/banner-contact.jpg`
+```bash
+npm run seed            # generate seed.sql
+npm run db:init:local   # create + seed the local D1
+cat > .dev.vars <<'EOF'
+ADMIN_PASSWORD=globalshaper2025
+SESSION_SECRET=dev-only-insecure-secret-change-me
+EOF
+npm run dev             # wrangler pages dev . on http://localhost:8788
+```
 
-2. **Custom Domain:** After deployment, you can add a custom domain in Vercel settings
+`.dev.vars` is gitignored. R2 uploads in local dev are stored under
+`.wrangler/` and served by `/img/...` just like production.
 
-3. **Environment Variables:** Not needed for this static site, but can be added in Vercel dashboard if required in future
+## Managing content
 
-4. **Automatic Deployments:** If connected to GitHub, Vercel will automatically deploy on every push to main branch
+- Go to `/admin.html`, log in with `ADMIN_PASSWORD`.
+- **Projects**: "Add Project" → fill details, choose a picture file
+  (uploaded to R2) or paste an image URL, save.
+- **Members**: "Add Member" → same picture-upload flow. Each member card
+  has a **Set Alumni / Set Active** button to flip their status instantly;
+  the type can also be set from the member form.
+- **Submissions**: contact-form entries, viewable and CSV-exportable.
 
-## Troubleshooting
+The `data/*.json` files are only the initial member/event seed; they are
+not read at runtime. To re-seed (destructive — overwrites D1 content):
+```bash
+npm run seed && npm run db:init:remote
+```
 
-- **404 Errors:** Make sure `vercel.json` is configured correctly
-- **Missing Images:** Check image paths in CSS and HTML files
-- **Build Errors:** Static HTML sites shouldn't have build errors, but check console for any issues
+## Notes
 
-## Next Steps After Deployment
-
-1. Update any hardcoded URLs if needed
-2. Test all pages and links
-3. Set up custom domain (optional)
-4. Enable analytics in Vercel dashboard (optional)
-
+- **Submissions** are individual D1 rows (atomic inserts), fixing the
+  read-modify-write race the old Vercel Blob version had.
+- **Image limits**: uploads accept JPEG/PNG/WebP/GIF up to 5 MB
+  (enforced in `functions/api/upload.js`).
+- **Session length**: 8 hours; admins re-login after expiry. The admin UI
+  detects a 401 and returns to the login screen automatically.
